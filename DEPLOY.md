@@ -108,11 +108,22 @@ password - don't ship this repo's example values to production.
 ## 6. Build and start everything
 
 ```bash
-docker compose build
+docker compose --profile tools build
 docker compose up -d postgres
 docker compose --profile tools run --rm migrate      # creates tables, seeds divisions + master admin
 docker compose up -d                 # starts postgres, app, and Caddy
 ```
+
+> Always build with `--profile tools`, not plain `docker compose build`. The
+> `migrate` service is gated behind the `tools` profile (it's a one-off
+> helper, not part of the running stack), and Compose silently skips
+> building any service outside the profiles you pass — so a bare
+> `docker compose build` rebuilds `app` but leaves `migrate` on whatever
+> image it happened to be built from last, however old that is. If that
+> happens, `migrate` diffs your *current* schema.ts against an *old* copy
+> of itself and can propose dropping columns another (correctly rebuilt)
+> part of the app already depends on. Building with `--profile tools`
+> every time keeps `migrate` in sync with `app` and avoids that entirely.
 
 Caddy will automatically request a Let's Encrypt certificate for `DOMAIN`
 the first time it starts - this needs DNS to already be pointing here and
@@ -254,17 +265,37 @@ crontab -e
 ```bash
 cd /opt/emrs-finance
 git pull                      # or re-upload via scp
-docker compose build
+docker compose --profile tools build
 docker compose --profile tools run --rm migrate
 docker compose up -d
 ```
 
-Always run the `migrate` step, even if you were told a given change has "no
-schema changes." It's a cheap, idempotent no-op when the schema hasn't
-changed (`drizzle-kit push --force` just confirms there's nothing to apply),
-but skipping it on a round that *did* change `src/db/schema.ts` leaves the
-live database with stale constraints — e.g. this is what caused deleting a
-user to fail with a foreign-key error after a previous deploy skipped it.
+Two things that have each caused a real outage here, so both are non-negotiable:
+
+- **Build with `--profile tools`, not plain `docker compose build`.** Without
+  it, Compose silently skips rebuilding the `migrate` service (it's gated
+  behind the `tools` profile), so `migrate` keeps running whatever image it
+  was last built from — possibly weeks old — while `app` gets rebuilt fine.
+  When that happens, `migrate` diffs the *current* schema.ts against its
+  *stale* copy of itself, and if a newer column was added, it looks "extra"
+  from the stale image's point of view — `drizzle-kit push --force` will
+  propose dropping it and apply that immediately, no confirmation. This is
+  exactly what happened when the reference-number columns got added and
+  then silently dropped again on the very next migrate run — the fix was
+  rebuilding with `docker compose --profile tools build migrate` specifically
+  before running migrate again.
+- **Always run the `migrate` step**, even if you were told a given change
+  has "no schema changes." It's a cheap, idempotent no-op when the schema
+  hasn't changed, but skipping it on a round that *did* change
+  `src/db/schema.ts` leaves the live database out of sync with the code —
+  e.g. this is what caused deleting a user to fail with a foreign-key error
+  after a previous deploy skipped it.
+
+If you ever do hit a situation where `migrate` proposes `DROP COLUMN`
+statements and you're not sure why, stop and don't let it apply — rebuild
+with `docker compose --profile tools build migrate` first and re-run; if it
+still proposes a drop after a confirmed fresh rebuild, that's a real schema
+conflict worth asking about before proceeding.
 
 **Restart everything:**
 ```bash

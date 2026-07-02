@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
 import { auditLogs, loginLogs, exportLogs, users, divisions } from "@/db/schema";
-import { CollapsibleSection } from "@/components/CollapsibleSection";
+import LogsClient from "./LogsClient";
 
 export default async function AdminLogsPage() {
   const user = await getCurrentUser();
@@ -33,82 +33,10 @@ export default async function AdminLogsPage() {
   ]);
 
   return (
-    <div className="space-y-10">
-      <h1 className="text-lg font-semibold">System Monitoring (Admin)</h1>
-
-      <CollapsibleSection title="Audit Log" count={audit.length}>
-        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Action</th>
-                <th className="p-2">Department</th><th className="p-2">Record</th>
-              </tr>
-            </thead>
-            <tbody>
-              {audit.map((a) => (
-                <tr key={a.log.id} className="border-t border-slate-100">
-                  <td className="p-2">{new Date(a.log.timestamp).toLocaleString()}</td>
-                  <td className="p-2">
-                    {a.username ?? <span className="text-slate-400 italic">Deleted user</span>}
-                  </td>
-                  <td className="p-2">{a.log.action}</td>
-                  <td className="p-2">{a.divisionCode ?? "—"}</td>
-                  <td className="p-2 font-mono text-xs">{a.log.recordId ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Login Activity" count={logins.length}>
-        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr><th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Event</th><th className="p-2">IP</th></tr>
-            </thead>
-            <tbody>
-              {logins.map((l) => (
-                <tr key={l.log.id} className="border-t border-slate-100">
-                  <td className="p-2">{new Date(l.log.timestamp).toLocaleString()}</td>
-                  <td className="p-2">
-                    {l.username ?? (
-                      <span className="text-red-500">
-                        unknown user &quot;{l.log.attemptedUsername}&quot;
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-2">{l.log.event}</td>
-                  <td className="p-2">{l.log.ipAddress ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Export History" count={exports.length}>
-        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr><th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Type</th><th className="p-2">Filters</th></tr>
-            </thead>
-            <tbody>
-              {exports.map((e) => (
-                <tr key={e.log.id} className="border-t border-slate-100">
-                  <td className="p-2">{new Date(e.log.timestamp).toLocaleString()}</td>
-                  <td className="p-2">
-                    {e.username ?? <span className="text-slate-400 italic">Deleted user</span>}
-                  </td>
-                  <td className="p-2">{e.log.exportType}</td>
-                  <td className="p-2 font-mono text-xs">{JSON.stringify(e.log.filters)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CollapsibleSection>
-    </div>
+    <LogsClient
+      audit={JSON.parse(JSON.stringify(audit))}
+      logins={JSON.parse(JSON.stringify(logins))}
+      exports={JSON.parse(JSON.stringify(exports))}
+    />
   );
 }
