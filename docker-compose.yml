@@ -10,7 +10,10 @@
 #
 # Caddy automatically obtains and renews a Let's Encrypt TLS certificate for
 # DOMAIN, as long as DNS for that domain already points at this server and
-# ports 80/443 are reachable from the internet.
+# ports 80/443 are reachable from the internet. If you'd rather use your own
+# nginx instead of Caddy, see "Using your own nginx instead of Caddy" in
+# DEPLOY.md - you'll uncomment the `ports:` line under `app:` below and skip
+# starting the `caddy` service.
 
 services:
   postgres:
@@ -27,7 +30,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    # Not exposed to the host/internet — only reachable by other containers
+    # Not exposed to the host/internet - only reachable by other containers
     # on this compose network. Remove this restriction only for local debugging.
     expose:
       - "5432"
@@ -56,10 +59,22 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-emrs}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-emrs_finance}
       NODE_ENV: production
+      # Canonical public origin of this deployment. The app's CSRF guard
+      # (src/middleware.ts) compares the browser's Origin header against
+      # this instead of guessing from proxy headers - set it to your real
+      # https://domain so it works no matter what reverse proxy sits in
+      # front (nginx, Caddy, etc.) and whether or not that proxy forwards
+      # Host/X-Forwarded-Proto correctly.
+      APP_ORIGIN: https://${DOMAIN:-localhost}
     volumes:
       - emrs_file_storage:/app/secure-storage
     expose:
       - "3000"
+    # If you're terminating TLS with your OWN nginx on the host (instead of
+    # the bundled `caddy` service below), uncomment this so nginx can reach
+    # the container, and don't start the `caddy` service:
+    # ports:
+    #   - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
