@@ -17,6 +17,7 @@ export default function Nav({ user }: { user: SessionUser }) {
     { href: "/expenses", label: "Expenses" },
     ...(user.role === "ADMIN"
       ? [
+          { href: "/invoice-tool", label: "Invoice Tool" },
           { href: "/admin/users", label: "Users" },
           { href: "/admin/logs", label: "System Logs" },
         ]
