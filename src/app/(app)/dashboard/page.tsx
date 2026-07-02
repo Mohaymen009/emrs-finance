@@ -48,10 +48,9 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
             Company-wide (Admin only)
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Total Income" value={fmt(combined.totalIncome)} />
             <StatCard label="Total Expenses" value={fmt(combined.totalExpenses)} />
-            <StatCard label="Net Profit" value={fmt(combined.netProfit)} />
             <StatCard label="VAT Collected" value={fmt(combined.vatCollected)} />
             <StatCard label="Entries" value={`${combined.incomeEntryCount + combined.expenseEntryCount}`} />
           </div>
@@ -61,10 +60,9 @@ export default async function DashboardPage() {
       {divisionStats.map(({ division, stats }) => (
         <section key={division.id}>
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{division.name}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Total Income" value={fmt(stats.totalIncome)} />
             <StatCard label="Total Expenses" value={fmt(stats.totalExpenses)} />
-            <StatCard label="Net Profit" value={fmt(stats.netProfit)} />
             <StatCard label="VAT Collected" value={fmt(stats.vatCollected)} />
             <StatCard label="Entries" value={`${stats.incomeEntryCount + stats.expenseEntryCount}`} />
           </div>

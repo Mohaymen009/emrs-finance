@@ -27,6 +27,12 @@ export function buttonClass(variant: keyof typeof BUTTON_VARIANTS = "primary", c
   return `${base} ${BUTTON_VARIANTS[variant]} ${className}`;
 }
 
+// Styles a native <input type="file"> so its "Choose file" control renders
+// as a proper button (via the file: pseudo-element) instead of bare text —
+// the rest of the control (filename preview) is left to the browser.
+export const fileInputClass =
+  "block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 file:transition-colors file:cursor-pointer cursor-pointer";
+
 export function Button({
   variant = "primary",
   className = "",

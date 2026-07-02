@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, gte, lte, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { incomeRecords, divisions, clients, payments } from "@/db/schema";
+import { incomeRecords, divisions, clients, payments, invoices } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { createIncomeSchema } from "@/lib/validation";
 import { handleApiError, applyComplimentaryRule } from "@/lib/api-helpers";
+import { assertValidUpload, saveFileToPrivateStorage } from "@/lib/storage";
 
 // GET /api/income?division=AMBULANCE&status=PAID&dateFrom=...&dateTo=...
 export async function GET(req: NextRequest) {
@@ -59,9 +60,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/income — create a new income (ledger) entry. Viewers cannot call this;
-// enforced by role check below (backend enforcement, not just hidden UI).
-// An invoice can optionally be attached afterwards via POST /api/income/:id/invoice.
+// POST /api/income — multipart/form-data (mirrors POST /api/expense). Fields
+// other than the optional invoice file are carried as a single JSON-encoded
+// "payload" field since income records nest optional client details. Viewers
+// cannot call this; enforced by role check below (backend enforcement, not
+// just hidden UI). An invoice can also be attached/replaced later via
+// POST /api/income/:id/invoice.
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
@@ -69,7 +73,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Viewers cannot create records" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const form = await req.formData();
+    const file = form.get("invoice");
+    if (file instanceof File) {
+      assertValidUpload({ type: file.type, size: file.size });
+    }
+
+    const payloadRaw = form.get("payload");
+    if (typeof payloadRaw !== "string") {
+      return NextResponse.json({ error: "Missing payload" }, { status: 400 });
+    }
+    const body = JSON.parse(payloadRaw);
     const input = createIncomeSchema.parse(body);
 
     assertDivisionAccess(user, input.divisionCode);
@@ -151,6 +165,25 @@ export async function POST(req: NextRequest) {
       divisionId: division.id,
       metadata: { title: record.title, amount: record.amount },
     });
+
+    if (file instanceof File) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const storageKey = await saveFileToPrivateStorage("invoices", file.name, buffer);
+      await db.insert(invoices).values({
+        incomeRecordId: record.id,
+        fileName: file.name,
+        storageKey,
+        mimeType: file.type,
+        sizeBytes: file.size,
+      });
+      await writeAuditLog({
+        userId: user.id,
+        action: "FILE_UPLOAD",
+        recordId: record.id,
+        divisionId: division.id,
+        metadata: { kind: "invoice", fileName: file.name },
+      });
+    }
 
     return NextResponse.json({ record }, { status: 201 });
   } catch (err) {

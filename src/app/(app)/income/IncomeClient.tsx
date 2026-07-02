@@ -11,6 +11,7 @@ import {
   IconSearch,
   IconEdit,
   IconPaperclip,
+  fileInputClass,
 } from "@/components/ui";
 
 type Division = { code: string; name: string };
@@ -70,6 +71,7 @@ export default function IncomeClient({
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [divisionCode, setDivisionCode] = useState(divisions[0]?.code ?? "AMBULANCE");
   const [title, setTitle] = useState("");
@@ -118,24 +120,27 @@ export default function IncomeClient({
       }
       const isComplimentary = paymentStatus === "COMPLIMENTARY";
 
-      const res = await fetch("/api/income", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          divisionCode,
-          title,
-          date,
-          amount: isComplimentary ? 0 : Number(amount || 0),
-          paymentStatus,
-          paymentDate: paymentStatus !== "UNPAID" ? date : undefined,
-          paymentMethod: paymentStatus === "PAID" ? paymentMethod : isComplimentary ? "COMPLIMENTARY" : undefined,
-          vatEnabled,
-          vatAmount: vatEnabled ? Number(vatAmount || 0) : undefined,
-          hasClientDetails,
-          client: hasClientDetails ? client : undefined,
-          notes,
-        }),
-      });
+      const payload = {
+        divisionCode,
+        title,
+        date,
+        amount: isComplimentary ? 0 : Number(amount || 0),
+        paymentStatus,
+        paymentDate: paymentStatus !== "UNPAID" ? date : undefined,
+        paymentMethod: paymentStatus === "PAID" ? paymentMethod : isComplimentary ? "COMPLIMENTARY" : undefined,
+        vatEnabled,
+        vatAmount: vatEnabled ? Number(vatAmount || 0) : undefined,
+        hasClientDetails,
+        client: hasClientDetails ? client : undefined,
+        notes,
+      };
+
+      const form = new FormData();
+      form.set("payload", JSON.stringify(payload));
+      const file = fileRef.current?.files?.[0];
+      if (file) form.set("invoice", file);
+
+      const res = await fetch("/api/income", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Failed to create record");
@@ -146,6 +151,7 @@ export default function IncomeClient({
       setAmount("");
       setIncludeFields(emptyClientFields());
       setClientValues(emptyClientValues());
+      if (fileRef.current) fileRef.current.value = "";
       router.refresh();
     } finally {
       setSubmitting(false);
@@ -293,9 +299,16 @@ export default function IncomeClient({
           </div>
 
           <div className="border-t border-slate-100 pt-4">
-            <p className="text-xs text-slate-400 mb-2">
-              You can attach an invoice (PDF/image) after saving, from the record&apos;s detail view.
+            <label className="block text-xs font-medium mb-1">
+              Invoice (optional — PDF, PNG, JPEG or WEBP, up to 15MB)
+            </label>
+            <p className="text-xs text-slate-400 mb-1">
+              You can also attach or add another invoice later from the record&apos;s detail view.
             </p>
+            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={fileInputClass} />
+          </div>
+
+          <div className="border-t border-slate-100 pt-4">
             <label className="block text-xs font-medium mb-1">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
           </div>
@@ -568,7 +581,7 @@ function IncomeDetailModal({
               )}
               {canEdit && (
                 <div className="flex items-center gap-2">
-                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="text-xs flex-1" />
+                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={`${fileInputClass} flex-1`} />
                   <Button variant="secondary" type="button" onClick={attachInvoice} disabled={submitting}>
                     Attach
                   </Button>

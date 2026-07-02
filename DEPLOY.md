@@ -255,9 +255,16 @@ crontab -e
 cd /opt/emrs-finance
 git pull                      # or re-upload via scp
 docker compose build
-docker compose --profile tools run --rm migrate   # only needed if the schema changed
+docker compose --profile tools run --rm migrate
 docker compose up -d
 ```
+
+Always run the `migrate` step, even if you were told a given change has "no
+schema changes." It's a cheap, idempotent no-op when the schema hasn't
+changed (`drizzle-kit push --force` just confirms there's nothing to apply),
+but skipping it on a round that *did* change `src/db/schema.ts` leaves the
+live database with stale constraints — e.g. this is what caused deleting a
+user to fail with a foreign-key error after a previous deploy skipped it.
 
 **Restart everything:**
 ```bash

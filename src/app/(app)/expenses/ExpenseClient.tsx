@@ -10,6 +10,7 @@ import {
   IconSearch,
   IconEdit,
   IconPaperclip,
+  fileInputClass,
 } from "@/components/ui";
 
 type Division = { code: string; name: string };
@@ -185,7 +186,7 @@ export default function ExpenseClient({
             <p className="text-xs text-slate-400 mb-1">
               You can also attach or add another receipt later from the record&apos;s detail view.
             </p>
-            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="w-full text-sm" />
+            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={fileInputClass} />
           </div>
 
           <div className="border-t border-slate-100 pt-4">
@@ -409,7 +410,7 @@ function ExpenseDetailModal({
               )}
               {canEdit && (
                 <div className="flex items-center gap-2">
-                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="text-xs flex-1" />
+                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={`${fileInputClass} flex-1`} />
                   <Button variant="secondary" type="button" onClick={attachReceipt} disabled={submitting}>
                     Attach
                   </Button>
