@@ -151,7 +151,7 @@ export default function UsersClient({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Division access</label>
+              <label className="block text-xs font-medium mb-1">Department access</label>
               <div className="flex gap-3 items-center h-full">
                 {DIVISIONS.map((d) => (
                   <label key={d.code} className="flex items-center gap-1 text-sm">
@@ -176,7 +176,7 @@ export default function UsersClient({
               <th className="px-2 md:px-3 py-2.5">Username</th>
               <th className="px-2 md:px-3 py-2.5">Full name</th>
               <th className="px-2 md:px-3 py-2.5">Role</th>
-              <th className="px-2 md:px-3 py-2.5">Divisions</th>
+              <th className="px-2 md:px-3 py-2.5">Departments</th>
               <th className="px-2 md:px-3 py-2.5">Status</th>
               <th className="px-2 md:px-3 py-2.5">Last login</th>
               <th className="px-2 md:px-3 py-2.5"></th>

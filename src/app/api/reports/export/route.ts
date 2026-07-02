@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
 
       const sheet = workbook.addWorksheet("Income");
       sheet.columns = [
-        { header: "Division", key: "division", width: 20 },
+        { header: "Department", key: "division", width: 20 },
         { header: "Title", key: "title", width: 30 },
         { header: "Date", key: "date", width: 15 },
         { header: "Amount", key: "amount", width: 16 },
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
 
       const sheet = workbook.addWorksheet("Expenses");
       sheet.columns = [
-        { header: "Division", key: "division", width: 20 },
+        { header: "Department", key: "division", width: 20 },
         { header: "Description", key: "description", width: 30 },
         { header: "Date", key: "date", width: 15 },
         { header: "Amount", key: "amount", width: 16 },

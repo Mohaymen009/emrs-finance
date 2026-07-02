@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, lte, isNull } from "drizzle-orm";
+import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseRecords, divisions, receipts } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
@@ -81,9 +81,19 @@ export async function POST(req: NextRequest) {
       .limit(1);
     if (!division) return NextResponse.json({ error: "Unknown division" }, { status: 400 });
 
+    // See the matching comment in api/income/route.ts.
+    const refYear = new Date().getFullYear();
+    const [maxRow] = await db
+      .select({ max: sql<number>`coalesce(max(${expenseRecords.refSeq}), 0)` })
+      .from(expenseRecords)
+      .where(and(eq(expenseRecords.refYear, refYear), isNull(expenseRecords.deletedAt)));
+    const refSeq = Number(maxRow?.max ?? 0) + 1;
+
     const [record] = await db
       .insert(expenseRecords)
       .values({
+        refYear,
+        refSeq,
         divisionId: division.id,
         description: input.description,
         amount: input.amount.toFixed(2),

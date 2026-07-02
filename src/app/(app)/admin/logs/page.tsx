@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
 import { auditLogs, loginLogs, exportLogs, users, divisions } from "@/db/schema";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 
 export default async function AdminLogsPage() {
   const user = await getCurrentUser();
@@ -35,14 +36,13 @@ export default async function AdminLogsPage() {
     <div className="space-y-10">
       <h1 className="text-lg font-semibold">System Monitoring (Admin)</h1>
 
-      <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase mb-3">Audit Log</h2>
+      <CollapsibleSection title="Audit Log" count={audit.length}>
         <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Action</th>
-                <th className="p-2">Division</th><th className="p-2">Record</th>
+                <th className="p-2">Department</th><th className="p-2">Record</th>
               </tr>
             </thead>
             <tbody>
@@ -60,10 +60,9 @@ export default async function AdminLogsPage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase mb-3">Login Activity</h2>
+      <CollapsibleSection title="Login Activity" count={logins.length}>
         <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -87,10 +86,9 @@ export default async function AdminLogsPage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase mb-3">Export History</h2>
+      <CollapsibleSection title="Export History" count={exports.length}>
         <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -110,7 +108,7 @@ export default async function AdminLogsPage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }

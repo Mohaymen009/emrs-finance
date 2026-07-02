@@ -86,7 +86,7 @@ export default async function DashboardPage({
       ))}
 
       {divisionStats.length === 0 && !combined && (
-        <p className="text-sm text-slate-500">You have not been granted access to any division yet.</p>
+        <p className="text-sm text-slate-500">You have not been granted access to any department yet.</p>
       )}
     </div>
   );

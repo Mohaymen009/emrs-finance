@@ -131,6 +131,12 @@ export const incomeRecords = pgTable(
   "income_records",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
+    // Human-facing reference number, e.g. 20260001 (year + sequence within
+    // that year, sequence reset per calendar year). Nullable so adding this
+    // column is a safe no-op migration for existing rows — see the seed.ts
+    // backfill, which assigns numbers to any row missing one.
+    refYear: integer("ref_year"),
+    refSeq: integer("ref_seq"),
     divisionId: text("division_id").notNull().references(() => divisions.id),
     title: text("title").notNull(),
     date: timestamp("date", { withTimezone: true }).notNull(),
@@ -161,6 +167,9 @@ export const expenseRecords = pgTable(
   "expense_records",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
+    // See incomeRecords.refYear/refSeq above.
+    refYear: integer("ref_year"),
+    refSeq: integer("ref_seq"),
     divisionId: text("division_id").notNull().references(() => divisions.id),
     description: text("description").notNull(),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, lte, isNull } from "drizzle-orm";
+import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { incomeRecords, divisions, clients, payments, invoices } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
@@ -120,9 +120,22 @@ export async function POST(req: NextRequest) {
       clientId = client.id;
     }
 
+    // Human-facing reference number (e.g. 20260001): year + sequence within
+    // that year. Computed from the current max for the year rather than a
+    // separate counter, so deleting the most recent record and creating a
+    // new one reuses that number instead of always climbing.
+    const refYear = new Date().getFullYear();
+    const [maxRow] = await db
+      .select({ max: sql<number>`coalesce(max(${incomeRecords.refSeq}), 0)` })
+      .from(incomeRecords)
+      .where(and(eq(incomeRecords.refYear, refYear), isNull(incomeRecords.deletedAt)));
+    const refSeq = Number(maxRow?.max ?? 0) + 1;
+
     const [record] = await db
       .insert(incomeRecords)
       .values({
+        refYear,
+        refSeq,
         divisionId: division.id,
         title: input.title,
         date: input.date,

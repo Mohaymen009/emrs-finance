@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Button,
   Badge,
-  buttonClass,
   Modal,
   ConfirmDialog,
   IconSearch,
@@ -14,6 +13,8 @@ import {
   fileInputClass,
 } from "@/components/ui";
 import { DateRangeFilter, type DateRange } from "@/components/DateRangeFilter";
+import { ExportDialog } from "@/components/ExportDialog";
+import { formatRefNumber } from "@/lib/refnumber";
 
 type Division = { code: string; name: string };
 
@@ -94,6 +95,8 @@ export default function IncomeClient({
   const [filterStatus, setFilterStatus] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ label: "All time" });
   const [selected, setSelected] = useState<any | null>(null);
+  const [payingRecord, setPayingRecord] = useState<any | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const dateLabel = paymentStatus === "PAID" ? "Payment Date" : "Date";
 
@@ -119,14 +122,14 @@ export default function IncomeClient({
     [filteredRecords]
   );
 
-  const exportHref = useMemo(() => {
+  function buildExportHref(range: DateRange) {
     const params = new URLSearchParams({ type: "INCOME" });
     if (filterDivision) params.set("division", filterDivision);
     if (filterStatus) params.set("status", filterStatus);
-    if (dateRange.dateFrom) params.set("dateFrom", dateRange.dateFrom);
-    if (dateRange.dateTo) params.set("dateTo", dateRange.dateTo);
+    if (range.dateFrom) params.set("dateFrom", range.dateFrom);
+    if (range.dateTo) params.set("dateTo", range.dateTo);
     return `/api/reports/export?${params.toString()}`;
-  }, [filterDivision, filterStatus, dateRange]);
+  }
 
   function toggleClientField(key: ClientFieldKey) {
     setIncludeFields((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -181,27 +184,14 @@ export default function IncomeClient({
     }
   }
 
-  async function markPaid(e: React.MouseEvent, id: string) {
-    e.stopPropagation();
-    const method = window.prompt(`Payment method (${PAYMENT_METHODS.join(", ")}):`, "POS");
-    if (!method || !PAYMENT_METHODS.includes(method)) return;
-    const res = await fetch(`/api/income/${id}/payment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentDate: new Date().toISOString(), paymentMethod: method }),
-    });
-    if (res.ok) router.refresh();
-    else alert((await res.json()).error ?? "Failed to record payment");
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Income</h1>
         <div className="flex gap-2">
-          <a href={exportHref} className={buttonClass("secondary")}>
-            Export Excel{dateRange.dateFrom ? ` (${dateRange.label})` : ""}
-          </a>
+          <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
+            Export to Excel
+          </Button>
           {canEdit && (
             <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cancel" : "+ New Income"}
@@ -218,7 +208,7 @@ export default function IncomeClient({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1">
-                Division <span className="text-red-500">*</span>
+                Department <span className="text-red-500">*</span>
               </label>
               <select value={divisionCode} onChange={(e) => setDivisionCode(e.target.value)} className={inputClass}>
                 {divisions.map((d) => (
@@ -355,7 +345,7 @@ export default function IncomeClient({
           />
         </div>
         <select value={filterDivision} onChange={(e) => setFilterDivision(e.target.value)} className={`${inputClass} md:w-56`}>
-          <option value="">All divisions</option>
+          <option value="">All departments</option>
           {divisions.map((d) => (
             <option key={d.code} value={d.code}>{d.name}</option>
           ))}
@@ -382,8 +372,8 @@ export default function IncomeClient({
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-2 md:px-3 py-2.5">#</th>
-              <th className="px-2 md:px-3 py-2.5">Division</th>
+              <th className="px-2 md:px-3 py-2.5">Ref #</th>
+              <th className="px-2 md:px-3 py-2.5">Department</th>
               <th className="px-2 md:px-3 py-2.5">Title</th>
               <th className="px-2 md:px-3 py-2.5">Date</th>
               <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
@@ -393,13 +383,13 @@ export default function IncomeClient({
             </tr>
           </thead>
           <tbody>
-            {filteredRecords.map((r, i) => (
+            {filteredRecords.map((r) => (
               <tr
                 key={r.record.id}
                 onClick={() => setSelected(r)}
                 className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
               >
-                <td className="px-2 md:px-3 py-2.5 text-slate-400">{i + 1}</td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refYear, r.record.refSeq)}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.title}</td>
                 <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
@@ -422,7 +412,7 @@ export default function IncomeClient({
                 <td className="px-2 md:px-3 py-2.5">{r.client ? r.client.name ?? "—" : <span className="text-slate-400">anonymous</span>}</td>
                 <td className="px-2 md:px-3 py-2.5">
                   {canEdit && r.record.paymentStatus === "UNPAID" && (
-                    <Button variant="ghost" onClick={(e) => markPaid(e, r.record.id)}>Mark Paid</Button>
+                    <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setPayingRecord(r); }}>Mark Paid</Button>
                   )}
                 </td>
               </tr>
@@ -446,6 +436,19 @@ export default function IncomeClient({
           }}
         />
       )}
+
+      {payingRecord && (
+        <MarkPaidModal
+          row={payingRecord}
+          onClose={() => setPayingRecord(null)}
+          onDone={() => {
+            router.refresh();
+            setPayingRecord(null);
+          }}
+        />
+      )}
+
+      <ExportDialog open={showExportDialog} onClose={() => setShowExportDialog(false)} buildHref={buildExportHref} />
     </div>
   );
 }
@@ -456,6 +459,73 @@ function DetailRow({ label, value, full }: { label: string; value: ReactNode; fu
       <dt className="text-xs text-slate-400">{label}</dt>
       <dd className="text-slate-900 break-words">{value}</dd>
     </div>
+  );
+}
+
+function MarkPaidModal({
+  row,
+  onClose,
+  onDone,
+}: {
+  row: any;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [method, setMethod] = useState("POS");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/income/${row.record.id}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentDate: date, paymentMethod: method }),
+      });
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to record payment");
+        return;
+      }
+      onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Mark as Paid" maxWidth="max-w-sm">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Recording payment for <span className="font-medium">{row.record.title}</span>
+          {" — "}
+          {Number(row.record.amount).toFixed(2)} AED.
+        </p>
+        <div>
+          <label className="block text-xs font-medium mb-1">
+            Payment Method <span className="text-red-500">*</span>
+          </label>
+          <select value={method} onChange={(e) => setMethod(e.target.value)} className={inputClass}>
+            {PAYMENT_METHODS.filter((m) => m !== "COMPLIMENTARY").map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">
+            Payment Date <span className="text-red-500">*</span>
+          </label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={confirm} disabled={submitting}>{submitting ? "Saving..." : "Confirm Payment"}</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -574,7 +644,8 @@ function IncomeDetailModal({
         {!editing ? (
           <div className="space-y-5">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <DetailRow label="Division" value={row.divisionName} />
+              <DetailRow label="Reference #" value={formatRefNumber(record.refYear, record.refSeq)} />
+              <DetailRow label="Department" value={row.divisionName} />
               <DetailRow label="Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow label="Title" value={record.title} full />
               <DetailRow
@@ -605,6 +676,7 @@ function IncomeDetailModal({
                         className="text-indigo-600 underline text-sm hover:text-indigo-800 inline-flex items-center gap-1"
                       >
                         <IconPaperclip className="w-3.5 h-3.5" /> {inv.fileName}
+                        <span className="text-slate-400 no-underline text-xs">(click to preview)</span>
                       </a>
                     </li>
                   ))}
@@ -639,7 +711,7 @@ function IncomeDetailModal({
           <form onSubmit={saveEdit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium mb-1">Division</label>
+                <label className="block text-xs font-medium mb-1">Department</label>
                 <select value={divisionCode} onChange={(e) => setDivisionCode(e.target.value)} className={inputClass}>
                   {divisions.map((d) => (
                     <option key={d.code} value={d.code}>{d.name}</option>

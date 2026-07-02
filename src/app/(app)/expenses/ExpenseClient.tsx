@@ -4,7 +4,6 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
-  buttonClass,
   Modal,
   ConfirmDialog,
   IconSearch,
@@ -13,6 +12,8 @@ import {
   fileInputClass,
 } from "@/components/ui";
 import { DateRangeFilter, type DateRange } from "@/components/DateRangeFilter";
+import { ExportDialog } from "@/components/ExportDialog";
+import { formatRefNumber } from "@/lib/refnumber";
 
 type Division = { code: string; name: string };
 
@@ -62,6 +63,7 @@ export default function ExpenseClient({
   const [filterDivision, setFilterDivision] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ label: "All time" });
   const [selected, setSelected] = useState<any | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const filteredRecords = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -80,13 +82,13 @@ export default function ExpenseClient({
     [filteredRecords]
   );
 
-  const exportHref = useMemo(() => {
+  function buildExportHref(range: DateRange) {
     const params = new URLSearchParams({ type: "EXPENSE" });
     if (filterDivision) params.set("division", filterDivision);
-    if (dateRange.dateFrom) params.set("dateFrom", dateRange.dateFrom);
-    if (dateRange.dateTo) params.set("dateTo", dateRange.dateTo);
+    if (range.dateFrom) params.set("dateFrom", range.dateFrom);
+    if (range.dateTo) params.set("dateTo", range.dateTo);
     return `/api/reports/export?${params.toString()}`;
-  }, [filterDivision, dateRange]);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -126,9 +128,9 @@ export default function ExpenseClient({
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Expenses</h1>
         <div className="flex gap-2">
-          <a href={exportHref} className={buttonClass("secondary")}>
-            Export Excel{dateRange.dateFrom ? ` (${dateRange.label})` : ""}
-          </a>
+          <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
+            Export to Excel
+          </Button>
           {canEdit && (
             <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cancel" : "+ New Expense"}
@@ -145,7 +147,7 @@ export default function ExpenseClient({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1">
-                Division <span className="text-red-500">*</span>
+                Department <span className="text-red-500">*</span>
               </label>
               <select value={divisionCode} onChange={(e) => setDivisionCode(e.target.value)} className={inputClass}>
                 {divisions.map((d) => (
@@ -231,7 +233,7 @@ export default function ExpenseClient({
           />
         </div>
         <select value={filterDivision} onChange={(e) => setFilterDivision(e.target.value)} className={`${inputClass} md:w-56`}>
-          <option value="">All divisions</option>
+          <option value="">All departments</option>
           {divisions.map((d) => (
             <option key={d.code} value={d.code}>{d.name}</option>
           ))}
@@ -252,8 +254,8 @@ export default function ExpenseClient({
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-2 md:px-3 py-2.5">#</th>
-              <th className="px-2 md:px-3 py-2.5">Division</th>
+              <th className="px-2 md:px-3 py-2.5">Ref #</th>
+              <th className="px-2 md:px-3 py-2.5">Department</th>
               <th className="px-2 md:px-3 py-2.5">Description</th>
               <th className="px-2 md:px-3 py-2.5">Date</th>
               <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
@@ -262,13 +264,13 @@ export default function ExpenseClient({
             </tr>
           </thead>
           <tbody>
-            {filteredRecords.map((r, i) => (
+            {filteredRecords.map((r) => (
               <tr
                 key={r.record.id}
                 onClick={() => setSelected(r)}
                 className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
               >
-                <td className="px-2 md:px-3 py-2.5 text-slate-400">{i + 1}</td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refYear, r.record.refSeq)}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.description}</td>
                 <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
@@ -302,6 +304,8 @@ export default function ExpenseClient({
           }}
         />
       )}
+
+      <ExportDialog open={showExportDialog} onClose={() => setShowExportDialog(false)} buildHref={buildExportHref} />
     </div>
   );
 }
@@ -408,7 +412,8 @@ function ExpenseDetailModal({
         {!editing ? (
           <div className="space-y-5">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <DetailRow label="Division" value={row.divisionName} />
+              <DetailRow label="Reference #" value={formatRefNumber(record.refYear, record.refSeq)} />
+              <DetailRow label="Department" value={row.divisionName} />
               <DetailRow label="Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow label="Description" value={record.description} full />
               <DetailRow label="Amount" value={`${Number(record.amount).toFixed(2)} AED`} />
@@ -429,6 +434,7 @@ function ExpenseDetailModal({
                         className="text-indigo-600 underline text-sm hover:text-indigo-800 inline-flex items-center gap-1"
                       >
                         <IconPaperclip className="w-3.5 h-3.5" /> {rc.fileName}
+                        <span className="text-slate-400 no-underline text-xs">(click to preview)</span>
                       </a>
                     </li>
                   ))}
@@ -463,7 +469,7 @@ function ExpenseDetailModal({
           <form onSubmit={saveEdit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium mb-1">Division</label>
+                <label className="block text-xs font-medium mb-1">Department</label>
                 <select value={divisionCode} onChange={(e) => setDivisionCode(e.target.value)} className={inputClass}>
                   {divisions.map((d) => (
                     <option key={d.code} value={d.code}>{d.name}</option>

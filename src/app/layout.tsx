@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "EMRS Finance Platform",
-  description: "Financial management platform for EMRS Ambulance & Home Healthcare divisions",
+  description: "Financial management platform for EMRS Ambulance & Home Healthcare departments",
 };
 
 export default function RootLayout({
