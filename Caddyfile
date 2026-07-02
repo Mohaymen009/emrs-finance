@@ -1,0 +1,21 @@
+{
+	# Uncomment and set a real email to get expiry notices from Let's Encrypt.
+	# email you@yourcompany.ae
+}
+
+{$DOMAIN} {
+	reverse_proxy app:3000
+
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output file /data/access.log
+	}
+}

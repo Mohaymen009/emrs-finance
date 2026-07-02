@@ -1,0 +1,10 @@
+node_modules
+.next
+secure-storage
+.env
+.env.*
+!.env.example
+.git
+drizzle
+*.log
+verify.log
