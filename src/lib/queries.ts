@@ -34,14 +34,21 @@ export async function listExpensesForUser(user: SessionUser) {
   if (allowedIds.length === 0) return [];
 
   const rows = await db
-    .select({ record: expenseRecords, divisionCode: divisions.code, divisionName: divisions.name, receipt: receipts })
+    .select({ record: expenseRecords, divisionCode: divisions.code, divisionName: divisions.name })
     .from(expenseRecords)
     .innerJoin(divisions, eq(expenseRecords.divisionId, divisions.id))
-    .leftJoin(receipts, eq(receipts.expenseRecordId, expenseRecords.id))
     .where(isNull(expenseRecords.deletedAt));
 
   const filtered = rows.filter((r) => allowedIds.includes(r.record.divisionId));
-  return filtered.sort((a, b) => b.record.date.getTime() - a.record.date.getTime());
+
+  const withReceipts = await Promise.all(
+    filtered.map(async (r) => {
+      const receiptRows = await db.select().from(receipts).where(eq(receipts.expenseRecordId, r.record.id));
+      return { ...r, receipts: receiptRows };
+    })
+  );
+
+  return withReceipts.sort((a, b) => b.record.date.getTime() - a.record.date.getTime());
 }
 
 export async function divisionsForUser(user: SessionUser) {

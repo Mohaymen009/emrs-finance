@@ -22,6 +22,20 @@ export function handleApiError(err: unknown): NextResponse {
   if (err instanceof FileValidationError) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
+  // Postgres foreign-key violation (23503) — most commonly hit here when the
+  // DB schema hasn't been migrated yet (see DEPLOY.md: `drizzle-kit push`
+  // must be re-run after any schema.ts change) so an old NOT NULL/NO ACTION
+  // constraint is still in place. Surface a clear, actionable message
+  // instead of a bare 500.
+  if (typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23503") {
+    return NextResponse.json(
+      {
+        error:
+          "This action is blocked by a database constraint. If this just started happening after a deploy, the database schema may not have been migrated yet (run `drizzle-kit push` / the `migrate` step).",
+      },
+      { status: 409 }
+    );
+  }
   console.error("Unhandled API error:", err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }

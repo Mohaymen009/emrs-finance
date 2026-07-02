@@ -3,7 +3,7 @@ import { computeDivisionStats, getAllDivisions } from "@/lib/stats";
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow p-4">
       <p className="text-xs text-slate-500 mb-1">{label}</p>
       <p className="text-lg font-semibold">{value}</p>
     </div>

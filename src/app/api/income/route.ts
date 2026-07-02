@@ -59,8 +59,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/income  — create a new income (ledger) entry. Viewers cannot call this;
+// POST /api/income — create a new income (ledger) entry. Viewers cannot call this;
 // enforced by role check below (backend enforcement, not just hidden UI).
+// An invoice can optionally be attached afterwards via POST /api/income/:id/invoice.
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();

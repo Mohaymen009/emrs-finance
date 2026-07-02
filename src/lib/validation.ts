@@ -44,6 +44,20 @@ export const createIncomeSchema = z
 
 export type CreateIncomeInput = z.infer<typeof createIncomeSchema>;
 
+// Edit never touches paymentStatus/paymentDate/paymentMethod — payment
+// history is permanent/immutable once recorded (see src/app/api/income/route.ts).
+export const updateIncomeSchema = z.object({
+  divisionCode: divisionCodeSchema.optional(),
+  title: z.string().trim().min(1).optional(),
+  date: z.coerce.date().optional(),
+  amount: z.coerce.number().nonnegative().optional(),
+  vatEnabled: z.boolean().optional(),
+  vatAmount: z.coerce.number().nonnegative().optional(),
+  hasClientDetails: z.boolean().optional(),
+  client: clientDetailsSchema.optional(),
+  notes: z.string().trim().optional(),
+});
+
 export const createExpenseSchema = z.object({
   divisionCode: divisionCodeSchema,
   description: z.string().trim().min(1, "Expense description is required"),
@@ -56,6 +70,17 @@ export const createExpenseSchema = z.object({
 });
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
+
+export const updateExpenseSchema = z.object({
+  divisionCode: divisionCodeSchema.optional(),
+  description: z.string().trim().min(1).optional(),
+  date: z.coerce.date().optional(),
+  amount: z.coerce.number().positive().optional(),
+  supplierName: z.string().trim().optional(),
+  vatEnabled: z.boolean().optional(),
+  vatAmount: z.coerce.number().nonnegative().optional(),
+  notes: z.string().trim().optional(),
+});
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1),

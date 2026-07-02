@@ -46,8 +46,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/expense — multipart/form-data. A receipt file is mandatory:
-// the record is rejected outright if no valid file is attached.
+// POST /api/expense — multipart/form-data. A receipt file is optional at
+// creation — it can be attached later via PATCH /api/expense/:id.
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
@@ -57,13 +57,9 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
     const file = form.get("receipt");
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: "A receipt file is mandatory and cannot be skipped." },
-        { status: 400 }
-      );
+    if (file instanceof File) {
+      assertValidUpload({ type: file.type, size: file.size });
     }
-    assertValidUpload({ type: file.type, size: file.size });
 
     const raw = {
       divisionCode: form.get("divisionCode"),
@@ -85,9 +81,6 @@ export async function POST(req: NextRequest) {
       .limit(1);
     if (!division) return NextResponse.json({ error: "Unknown division" }, { status: 400 });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const storageKey = await saveFileToPrivateStorage("receipts", file.name, buffer);
-
     const [record] = await db
       .insert(expenseRecords)
       .values({
@@ -103,14 +96,6 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    await db.insert(receipts).values({
-      expenseRecordId: record.id,
-      fileName: file.name,
-      storageKey,
-      mimeType: file.type,
-      sizeBytes: file.size,
-    });
-
     await writeAuditLog({
       userId: user.id,
       action: "CREATE_EXPENSE",
@@ -118,13 +103,25 @@ export async function POST(req: NextRequest) {
       divisionId: division.id,
       metadata: { description: record.description, amount: record.amount },
     });
-    await writeAuditLog({
-      userId: user.id,
-      action: "FILE_UPLOAD",
-      recordId: record.id,
-      divisionId: division.id,
-      metadata: { kind: "receipt", fileName: file.name },
-    });
+
+    if (file instanceof File) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const storageKey = await saveFileToPrivateStorage("receipts", file.name, buffer);
+      await db.insert(receipts).values({
+        expenseRecordId: record.id,
+        fileName: file.name,
+        storageKey,
+        mimeType: file.type,
+        sizeBytes: file.size,
+      });
+      await writeAuditLog({
+        userId: user.id,
+        action: "FILE_UPLOAD",
+        recordId: record.id,
+        divisionId: division.id,
+        metadata: { kind: "receipt", fileName: file.name },
+      });
+    }
 
     return NextResponse.json({ record }, { status: 201 });
   } catch (err) {

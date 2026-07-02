@@ -1,14 +1,16 @@
 "use client";
 
-import { ButtonHTMLAttributes, ReactNode } from "react";
+import { ButtonHTMLAttributes, ReactNode, useEffect } from "react";
 
 // Shared visual primitives used across Income/Expenses/Users so the app has
-// one consistent button/badge/dialog language instead of ad-hoc classNames
-// repeated on every page.
+// one consistent button/badge/dialog/icon language instead of ad-hoc
+// classNames repeated on every page. No icon library dependency (Dockerfile
+// uses `npm ci`, which needs an exact package-lock.json match we can't
+// regenerate here) — icons are small hand-rolled inline SVGs instead.
 
 const BUTTON_VARIANTS = {
-  primary: "bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50",
-  secondary: "border border-slate-300 text-slate-700 hover:bg-slate-100",
+  primary: "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50",
+  secondary: "border border-slate-300 text-slate-700 hover:bg-slate-50",
   danger: "bg-red-600 text-white hover:bg-red-700",
   ghost: "text-slate-600 underline hover:text-slate-900",
   dangerGhost: "text-red-600 underline hover:text-red-700",
@@ -21,7 +23,7 @@ export function buttonClass(variant: keyof typeof BUTTON_VARIANTS = "primary", c
   const base =
     variant === "ghost" || variant === "dangerGhost"
       ? "text-xs transition-colors"
-      : "text-sm rounded-md px-3 py-1.5 transition-colors active:scale-[0.98] inline-block";
+      : "text-sm rounded-lg px-3 py-1.5 transition-colors active:scale-[0.98] inline-block";
   return `${base} ${BUTTON_VARIANTS[variant]} ${className}`;
 }
 
@@ -65,6 +67,53 @@ export function Badge({
   );
 }
 
+/** Generic overlay + card. Escape or backdrop click both close it. */
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  maxWidth = "max-w-lg",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  children: ReactNode;
+  maxWidth?: string;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-scale-in"
+      onClick={onClose}
+    >
+      <div
+        className={`bg-white rounded-xl shadow-2xl border border-slate-200 w-full ${maxWidth} my-8 animate-fade-scale-in`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {title && (
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+            <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors">
+              <IconX className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function ConfirmDialog({
   open,
   title,
@@ -80,21 +129,86 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm animate-fade-scale-in">
-      <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-5 w-full max-w-sm mx-4 animate-fade-scale-in">
-        <h2 className="text-sm font-semibold text-slate-900 mb-2">{title}</h2>
-        <p className="text-sm text-slate-600 mb-5">{message}</p>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
-        </div>
+    <Modal open={open} onClose={onCancel} title={title} maxWidth="max-w-sm">
+      <p className="text-sm text-slate-600 mb-5">{message}</p>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="danger" onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
       </div>
-    </div>
+    </Modal>
+  );
+}
+
+// --- Icons -------------------------------------------------------------
+// Small hand-rolled stroke icons (no external icon library — see note above).
+
+type IconProps = { className?: string };
+
+export function IconMenu({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
+export function IconX({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+export function IconSearch({ className = "w-4 h-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+export function IconEdit({ className = "w-4 h-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+export function IconTrash({ className = "w-4 h-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </svg>
+  );
+}
+
+export function IconPaperclip({ className = "w-4 h-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48" />
+    </svg>
+  );
+}
+
+export function IconPlus({ className = "w-4 h-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
   );
 }

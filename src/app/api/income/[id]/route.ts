@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/db";
-import { incomeRecords, divisions } from "@/db/schema";
+import { incomeRecords, divisions, clients } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { updateIncomeSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
 
 async function loadRecordWithDivision(id: string) {
@@ -32,14 +32,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-const updateSchema = z.object({
-  title: z.string().trim().min(1).optional(),
-  notes: z.string().trim().optional(),
-  date: z.coerce.date().optional(),
-});
-
-// PATCH: edit free-text/description fields only. Amount and payment status
-// changes go through dedicated flows so payment history stays immutable.
+// PATCH — edit descriptive fields (division, title, date, amount, VAT,
+// client details, notes). Never touches paymentStatus/paymentDate/
+// paymentMethod — payment history is permanent/immutable once recorded (see
+// POST /api/income and POST /api/income/:id/payment). Invoices are attached
+// separately via POST /api/income/:id/invoice.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
@@ -53,19 +50,57 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     assertDivisionAccess(user, row.divisionCode);
 
-    const input = updateSchema.parse(await req.json());
-    const [updated] = await db
-      .update(incomeRecords)
-      .set({ ...input, updatedAt: new Date() })
-      .where(eq(incomeRecords.id, id))
-      .returning();
+    const input = updateIncomeSchema.parse(await req.json());
+
+    let divisionId = row.divisionId;
+    if (input.divisionCode) {
+      assertDivisionAccess(user, input.divisionCode);
+      const [division] = await db.select().from(divisions).where(eq(divisions.code, input.divisionCode)).limit(1);
+      if (!division) return NextResponse.json({ error: "Unknown division" }, { status: 400 });
+      divisionId = division.id;
+    }
+
+    let clientId = row.record.clientId;
+    if (input.hasClientDetails !== undefined) {
+      if (input.hasClientDetails && input.client) {
+        const [client] = await db
+          .insert(clients)
+          .values({
+            name: input.client.name,
+            phone: input.client.phone,
+            email: input.client.email || undefined,
+            companyName: input.client.companyName,
+            trnNumber: input.client.trnNumber,
+          })
+          .returning();
+        clientId = client.id;
+      } else {
+        clientId = null;
+      }
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.title !== undefined) updates.title = input.title;
+    if (input.date !== undefined) updates.date = input.date;
+    if (input.amount !== undefined) updates.amount = input.amount.toFixed(2);
+    if (input.vatEnabled !== undefined) updates.vatEnabled = input.vatEnabled;
+    if (input.vatAmount !== undefined) updates.vatAmount = String(input.vatAmount);
+    if (input.vatEnabled === false) updates.vatAmount = null;
+    if (input.hasClientDetails !== undefined) {
+      updates.hasClientDetails = input.hasClientDetails;
+      updates.clientId = clientId;
+    }
+    if (input.notes !== undefined) updates.notes = input.notes;
+    if (input.divisionCode) updates.divisionId = divisionId;
+
+    const [updated] = await db.update(incomeRecords).set(updates).where(eq(incomeRecords.id, id)).returning();
 
     await writeAuditLog({
       userId: user.id,
       action: "UPDATE_INCOME",
       recordId: id,
-      divisionId: row.divisionId,
-      metadata: input,
+      divisionId,
+      metadata: { title: updated.title, amount: updated.amount },
     });
 
     return NextResponse.json({ record: updated });
