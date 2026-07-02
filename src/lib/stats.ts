@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { incomeRecords, expenseRecords, divisions } from "@/db/schema";
 
@@ -13,8 +13,21 @@ export type DivisionStats = {
   expenseEntryCount: number;
 };
 
-/** Computes the required dashboard figures for a single division. */
-export async function computeDivisionStats(divisionId: string): Promise<Omit<DivisionStats, "divisionCode" | "divisionName">> {
+export type DateBounds = { from?: Date; to?: Date };
+
+/** Computes the required dashboard figures for a single division, optionally bounded to a date range. */
+export async function computeDivisionStats(
+  divisionId: string,
+  range?: DateBounds
+): Promise<Omit<DivisionStats, "divisionCode" | "divisionName">> {
+  const incomeConditions = [eq(incomeRecords.divisionId, divisionId), isNull(incomeRecords.deletedAt)];
+  if (range?.from) incomeConditions.push(gte(incomeRecords.date, range.from));
+  if (range?.to) incomeConditions.push(lte(incomeRecords.date, range.to));
+
+  const expenseConditions = [eq(expenseRecords.divisionId, divisionId), isNull(expenseRecords.deletedAt)];
+  if (range?.from) expenseConditions.push(gte(expenseRecords.date, range.from));
+  if (range?.to) expenseConditions.push(lte(expenseRecords.date, range.to));
+
   const [incomeAgg] = await db
     .select({
       total: sql<string>`coalesce(sum(${incomeRecords.amount}), 0)`,
@@ -22,7 +35,7 @@ export async function computeDivisionStats(divisionId: string): Promise<Omit<Div
       count: sql<number>`count(*)`,
     })
     .from(incomeRecords)
-    .where(and(eq(incomeRecords.divisionId, divisionId), isNull(incomeRecords.deletedAt)));
+    .where(and(...incomeConditions));
 
   const [expenseAgg] = await db
     .select({
@@ -30,7 +43,7 @@ export async function computeDivisionStats(divisionId: string): Promise<Omit<Div
       count: sql<number>`count(*)`,
     })
     .from(expenseRecords)
-    .where(and(eq(expenseRecords.divisionId, divisionId), isNull(expenseRecords.deletedAt)));
+    .where(and(...expenseConditions));
 
   const totalIncome = Number(incomeAgg?.total ?? 0);
   const totalExpenses = Number(expenseAgg?.total ?? 0);

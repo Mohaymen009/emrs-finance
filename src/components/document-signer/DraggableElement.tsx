@@ -12,6 +12,14 @@ interface DraggableElementProps {
   onSelect: () => void;
 }
 
+function pointFromEvent(e: MouseEvent | TouchEvent): { x: number; y: number } {
+  if ("touches" in e) {
+    const t = e.touches[0] ?? e.changedTouches[0];
+    return { x: t.clientX, y: t.clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
 export const DraggableElement = ({
   element,
   containerRef,
@@ -27,68 +35,74 @@ export const DraggableElement = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (e: MouseEvent | TouchEvent) => {
       if (!containerRef.current) return;
-
       const containerRect = containerRef.current.getBoundingClientRect();
+      const { x: clientX, y: clientY } = pointFromEvent(e);
 
       if (isDragging) {
-        const deltaX = (e.clientX - dragStart.x) / scale;
-        const deltaY = (e.clientY - dragStart.y) / scale;
+        const deltaX = (clientX - dragStart.x) / scale;
+        const deltaY = (clientY - dragStart.y) / scale;
 
         const newX = Math.max(0, Math.min(element.x + deltaX, (containerRect.width / scale) - element.width));
         const newY = Math.max(0, Math.min(element.y + deltaY, (containerRect.height / scale) - element.height));
 
         onUpdate(element.id, { x: newX, y: newY });
-        setDragStart({ x: e.clientX, y: e.clientY });
+        setDragStart({ x: clientX, y: clientY });
       }
 
       if (isResizing) {
-        const deltaX = (e.clientX - dragStart.x) / scale;
-        const deltaY = (e.clientY - dragStart.y) / scale;
+        const deltaX = (clientX - dragStart.x) / scale;
+        const deltaY = (clientY - dragStart.y) / scale;
 
         const aspectRatio = element.width / element.height;
         const newWidth = Math.max(40, element.width + deltaX);
         const newHeight = newWidth / aspectRatio;
 
         onUpdate(element.id, { width: newWidth, height: newHeight });
-        setDragStart({ x: e.clientX, y: e.clientY });
+        setDragStart({ x: clientX, y: clientY });
       }
     };
 
-    const handleMouseUp = () => {
+    const handleEnd = () => {
       setIsDragging(false);
       setIsResizing(false);
     };
 
     if (isDragging || isResizing) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleEnd);
+      window.addEventListener("touchmove", handleMove, { passive: false });
+      window.addEventListener("touchend", handleEnd);
     }
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleEnd);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleEnd);
     };
   }, [isDragging, isResizing, dragStart, element, onUpdate, scale, containerRef]);
 
-  const handleDragStart = (e: React.MouseEvent) => {
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     onSelect();
     setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
+    const { x, y } = pointFromEvent(e.nativeEvent);
+    setDragStart({ x, y });
   };
 
-  const handleResizeStart = (e: React.MouseEvent) => {
+  const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     setIsResizing(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
+    const { x, y } = pointFromEvent(e.nativeEvent);
+    setDragStart({ x, y });
   };
 
   return (
     <div
       ref={elementRef}
-      className={`absolute cursor-move group ${isSelected ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+      className={`absolute cursor-move group touch-none ${isSelected ? 'ring-2 ring-primary ring-offset-1' : ''}`}
       style={{
         left: element.x * scale,
         top: element.y * scale,
@@ -100,7 +114,9 @@ export const DraggableElement = ({
         onSelect();
       }}
       onMouseDown={handleDragStart}
+      onTouchStart={handleDragStart}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={element.imageData}
         alt={element.type}
@@ -117,6 +133,7 @@ export const DraggableElement = ({
               e.stopPropagation();
               onDelete(element.id);
             }}
+            aria-label="Delete"
           >
             <X className="h-3 w-3" />
           </button>
@@ -128,8 +145,9 @@ export const DraggableElement = ({
 
           {/* Resize handle */}
           <div
-            className="absolute -bottom-1 -right-1 w-4 h-4 bg-primary rounded-full cursor-se-resize shadow-md"
+            className="absolute -bottom-1 -right-1 w-4 h-4 bg-primary rounded-full cursor-se-resize shadow-md touch-none"
             onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
           />
         </>
       )}

@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { computeDivisionStats, getAllDivisions } from "@/lib/stats";
+import DashboardDateFilter from "./DashboardDateFilter";
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -14,20 +15,30 @@ function fmt(n: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(n);
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dateFrom?: string; dateTo?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) return null;
+
+  const { dateFrom, dateTo } = await searchParams;
+  const range = {
+    from: dateFrom ? new Date(dateFrom) : undefined,
+    to: dateTo ? new Date(dateTo) : undefined,
+  };
 
   const allDivisions = await getAllDivisions();
   const visible = allDivisions.filter((d) => user.divisionCodes.includes(d.code));
 
   const divisionStats = await Promise.all(
-    visible.map(async (d) => ({ division: d, stats: await computeDivisionStats(d.id) }))
+    visible.map(async (d) => ({ division: d, stats: await computeDivisionStats(d.id, range) }))
   );
 
   let combined = null;
   if (user.role === "ADMIN") {
-    const all = await Promise.all(allDivisions.map(async (d) => await computeDivisionStats(d.id)));
+    const all = await Promise.all(allDivisions.map(async (d) => await computeDivisionStats(d.id, range)));
     combined = all.reduce(
       (acc, s) => ({
         totalIncome: acc.totalIncome + s.totalIncome,
@@ -43,6 +54,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">Dashboard</h1>
+        <DashboardDateFilter />
+      </div>
+
       {combined && (
         <section>
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">

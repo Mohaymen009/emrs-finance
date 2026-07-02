@@ -48,9 +48,16 @@ export const PDFViewer = ({
     onNumPagesChange(numPages);
   }, [onNumPagesChange]);
 
-  const onPageLoadSuccess = useCallback((page: { width: number; height: number }) => {
-    onPageSizeChange({ width: page.width, height: page.height });
-    setPageWidth(page.width);
+  const onPageLoadSuccess = useCallback((page: { width: number; height: number; originalWidth?: number; originalHeight?: number }) => {
+    // react-pdf reports `.width`/`.height` at the CURRENT render scale, not
+    // the page's intrinsic size — `.originalWidth`/`.originalHeight` are the
+    // scale-independent ones. Using the scaled values here fed straight back
+    // into the fit-to-width scale calculation below, which fed back into a
+    // new render scale, forever ("Maximum update depth exceeded").
+    const width = page.originalWidth ?? page.width;
+    const height = page.originalHeight ?? page.height;
+    onPageSizeChange({ width, height });
+    setPageWidth(width);
   }, [onPageSizeChange]);
 
   const pageElements = elements.filter((el) => el.pageIndex === currentPage - 1);

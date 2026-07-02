@@ -1,5 +1,5 @@
 export { DocumentSigner } from "./DocumentSigner";
 export { PDFViewer } from "./PDFViewer";
-export { SignatureDrawer } from "./SignatureDrawer";
+export { SignatureCreator } from "./SignatureCreator";
 export { AssetLibrary } from "./AssetLibrary";
 export { DraggableElement } from "./DraggableElement";

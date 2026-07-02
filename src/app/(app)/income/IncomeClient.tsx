@@ -13,6 +13,7 @@ import {
   IconPaperclip,
   fileInputClass,
 } from "@/components/ui";
+import { DateRangeFilter, type DateRange } from "@/components/DateRangeFilter";
 
 type Division = { code: string; name: string };
 
@@ -91,6 +92,7 @@ export default function IncomeClient({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange>({ label: "All time" });
   const [selected, setSelected] = useState<any | null>(null);
 
   const dateLabel = paymentStatus === "PAID" ? "Payment Date" : "Date";
@@ -100,10 +102,31 @@ export default function IncomeClient({
     return initialRecords.filter((r) => {
       if (filterDivision && r.divisionCode !== filterDivision) return false;
       if (filterStatus && r.record.paymentStatus !== filterStatus) return false;
+      const recordDate = new Date(r.record.date).toISOString().slice(0, 10);
+      if (dateRange.dateFrom && recordDate < dateRange.dateFrom) return false;
+      if (dateRange.dateTo && recordDate > dateRange.dateTo) return false;
       if (!term) return true;
       return buildHaystack(r).includes(term);
     });
-  }, [initialRecords, filterDivision, filterStatus, searchTerm]);
+  }, [initialRecords, filterDivision, filterStatus, searchTerm, dateRange]);
+
+  const filteredTotal = useMemo(
+    () =>
+      filteredRecords.reduce(
+        (sum, r) => sum + (r.record.paymentStatus === "COMPLIMENTARY" ? 0 : Number(r.record.amount)),
+        0
+      ),
+    [filteredRecords]
+  );
+
+  const exportHref = useMemo(() => {
+    const params = new URLSearchParams({ type: "INCOME" });
+    if (filterDivision) params.set("division", filterDivision);
+    if (filterStatus) params.set("status", filterStatus);
+    if (dateRange.dateFrom) params.set("dateFrom", dateRange.dateFrom);
+    if (dateRange.dateTo) params.set("dateTo", dateRange.dateTo);
+    return `/api/reports/export?${params.toString()}`;
+  }, [filterDivision, filterStatus, dateRange]);
 
   function toggleClientField(key: ClientFieldKey) {
     setIncludeFields((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -176,8 +199,8 @@ export default function IncomeClient({
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Income</h1>
         <div className="flex gap-2">
-          <a href="/api/reports/export?type=INCOME" className={buttonClass("secondary")}>
-            Export Excel
+          <a href={exportHref} className={buttonClass("secondary")}>
+            Export Excel{dateRange.dateFrom ? ` (${dateRange.label})` : ""}
           </a>
           {canEdit && (
             <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
@@ -343,6 +366,16 @@ export default function IncomeClient({
           <option value="PAID">Paid</option>
           <option value="COMPLIMENTARY">Complimentary</option>
         </select>
+      </div>
+
+      <DateRangeFilter onChange={setDateRange} />
+
+      <div className="flex items-center justify-between text-sm text-slate-500 px-1">
+        <span>
+          {filteredRecords.length} record{filteredRecords.length === 1 ? "" : "s"}
+          {dateRange.dateFrom && <> &middot; {dateRange.label}</>}
+        </span>
+        <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">

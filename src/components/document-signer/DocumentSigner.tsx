@@ -1,17 +1,17 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { PDFDocument } from "pdf-lib";
 import { SignerElement, SavedAsset } from "@/types/document-signer";
 import { saveAsset } from "@/utils/signer-storage";
 import { PDFViewer } from "./PDFViewer";
-import { SignatureDrawer } from "./SignatureDrawer";
+import { SignatureCreator } from "./SignatureCreator";
 import { AssetLibrary } from "./AssetLibrary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Upload, Download, PenLine, Stamp, FileUp, ArrowLeft } from "lucide-react";
+import { Upload, Download, PenLine, Stamp, FileUp, ArrowLeft, Plus } from "lucide-react";
 
 interface DocumentSignerProps {
   onBack: () => void;
@@ -25,8 +25,8 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [pageSize, setPageSize] = useState({ width: 595, height: 842 }); // A4 default
-  const [showSignatureDrawer, setShowSignatureDrawer] = useState(false);
-  const [showUploadDialog, setShowUploadDialog] = useState<'signature' | 'stamp' | null>(null);
+  const [showSignatureCreator, setShowSignatureCreator] = useState(false);
+  const [showStampUpload, setShowStampUpload] = useState(false);
   const [assetRefreshKey, setAssetRefreshKey] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +38,7 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
       setPdfFile(file);
       setPdfBytes(arrayBuffer);
       setElements([]);
+      setSelectedElementId(null);
       setCurrentPage(1);
       toast({
         title: "PDF Uploaded",
@@ -61,35 +62,33 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
       });
       return;
     }
-    
+
     const newElement: SignerElement = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       type: asset.type,
       x: 100,
       y: 100,
-      width: asset.type === 'stamp' ? 100 : 120,
-      height: asset.type === 'stamp' ? 100 : 50,
+      width: asset.type === "stamp" ? 100 : 120,
+      height: asset.type === "stamp" ? 100 : 50,
       pageIndex: currentPage - 1,
       imageData: asset.imageData,
     };
     setElements((prev) => [...prev, newElement]);
     setSelectedElementId(newElement.id);
     toast({
-      title: `${asset.type === 'stamp' ? 'Stamp' : 'Signature'} Added`,
-      description: "Drag to position, resize if needed.",
+      title: `${asset.type === "stamp" ? "Stamp" : "Signature"} added`,
+      description: "Drag to position, use the corner handle to resize.",
     });
   };
 
-  const handleSignatureDrawn = (dataUrl: string) => {
-    const name = `Signature ${new Date().toLocaleDateString()}`;
-    saveAsset({ name, imageData: dataUrl, type: 'signature' });
+  const handleSignatureSaved = (dataUrl: string, name: string) => {
+    saveAsset({ name, imageData: dataUrl, type: "signature" });
     setAssetRefreshKey((k) => k + 1);
-    setShowSignatureDrawer(false);
 
     if (pdfFile) {
       const newElement: SignerElement = {
-        id: Date.now().toString(),
-        type: 'signature',
+        id: crypto.randomUUID(),
+        type: "signature",
         x: 100,
         y: 100,
         width: 120,
@@ -102,14 +101,14 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
     }
 
     toast({
-      title: "Signature Saved",
-      description: pdfFile 
-        ? "Your signature has been saved and added to the document."
-        : "Your signature has been saved to the library.",
+      title: "Signature saved",
+      description: pdfFile
+        ? "Saved to your library and added to the document."
+        : "Saved to your library — upload a PDF to place it.",
     });
   };
 
-  const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'signature' | 'stamp') => {
+  const handleStampUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -117,12 +116,12 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       const name = file.name.replace(/\.[^/.]+$/, "");
-      saveAsset({ name, imageData: dataUrl, type });
+      saveAsset({ name, imageData: dataUrl, type: "stamp" });
       setAssetRefreshKey((k) => k + 1);
-      setShowUploadDialog(null);
+      setShowStampUpload(false);
 
       toast({
-        title: `${type === 'stamp' ? 'Stamp' : 'Signature'} Saved`,
+        title: "Stamp saved",
         description: `${name} has been added to your library.`,
       });
     };
@@ -140,6 +139,25 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
     setSelectedElementId(null);
   }, []);
 
+  // Delete/Backspace removes the selected element, Escape clears the
+  // selection — standard editor shortcuts, skipped while typing in a field.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+      if (isTyping) return;
+
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedElementId) {
+        e.preventDefault();
+        handleDeleteElement(selectedElementId);
+      } else if (e.key === "Escape") {
+        setSelectedElementId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElementId, handleDeleteElement]);
+
   // Convert image URL/data to bytes
   const getImageBytes = async (imageData: string): Promise<Uint8Array> => {
     // If it's a data URL
@@ -152,7 +170,7 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
       }
       return bytes;
     }
-    
+
     // If it's a URL (like imported asset), fetch it
     const response = await fetch(imageData);
     const arrayBuffer = await response.arrayBuffer();
@@ -164,6 +182,15 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
       toast({
         title: "No Document",
         description: "Please upload a PDF first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (elements.length === 0) {
+      toast({
+        title: "Nothing to sign with",
+        description: "Add a signature or stamp to the document first.",
         variant: "destructive",
       });
       return;
@@ -186,10 +213,10 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
         if (!page) continue;
 
         const { width: pageWidth, height: pageHeight } = page.getSize();
-        
+
         // Get image bytes
         const imageBytes = await getImageBytes(element.imageData);
-        
+
         // Embed image (try PNG first for transparency, fallback to JPEG)
         let image;
         try {
@@ -221,7 +248,7 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
 
       // Save the modified PDF
       const modifiedPdfBytes = await pdfDoc.save();
-      
+
       // Create download link - slice to create a proper ArrayBuffer
       const blob = new Blob([modifiedPdfBytes.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -274,7 +301,7 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="h-4 w-4 mr-2" />
-                Upload PDF
+                {pdfFile ? "Replace PDF" : "Upload PDF"}
               </Button>
               <Button onClick={handleDownload} disabled={!pdfFile || isDownloading}>
                 <Download className="h-4 w-4 mr-2" />
@@ -321,7 +348,7 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
               </Card>
             )}
 
-            {/* Signature Tools */}
+            {/* Signature library */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -329,47 +356,21 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
                   Signatures
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setShowSignatureDrawer(true)}
-                >
-                  Draw Signature
-                </Button>
-
-                <Dialog open={showUploadDialog === 'signature'} onOpenChange={(open) => setShowUploadDialog(open ? 'signature' : null)}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full">
-                      Upload Signature Image
+              <CardContent>
+                <AssetLibrary
+                  type="signature"
+                  onSelect={handleAssetSelect}
+                  refreshKey={assetRefreshKey}
+                  addButton={
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setShowSignatureCreator(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add signature
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Upload Signature Image</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Label>Select an image file (PNG recommended for transparency)</Label>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleAssetUpload(e, 'signature')}
-                      />
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                {showSignatureDrawer && (
-                  <SignatureDrawer
-                    onSave={handleSignatureDrawn}
-                    onCancel={() => setShowSignatureDrawer(false)}
-                  />
-                )}
+                  }
+                />
               </CardContent>
             </Card>
 
-            {/* Stamp Tools */}
+            {/* Stamp library */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -378,44 +379,25 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Dialog open={showUploadDialog === 'stamp'} onOpenChange={(open) => setShowUploadDialog(open ? 'stamp' : null)}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full">
-                      Upload Stamp Image
+                <AssetLibrary
+                  type="stamp"
+                  onSelect={handleAssetSelect}
+                  refreshKey={assetRefreshKey}
+                  addButton={
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setShowStampUpload(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add stamp
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Upload Stamp Image</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Label>Select an image file (PNG recommended for transparency)</Label>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleAssetUpload(e, 'stamp')}
-                      />
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  }
+                />
               </CardContent>
             </Card>
 
-            {/* Asset Libraries */}
-            <div className="space-y-4">
-              <AssetLibrary
-                type="signature"
-                onSelect={handleAssetSelect}
-                onAddNew={() => setShowSignatureDrawer(true)}
-                refreshKey={assetRefreshKey}
-              />
-              <AssetLibrary
-                type="stamp"
-                onSelect={handleAssetSelect}
-                onAddNew={() => setShowUploadDialog('stamp')}
-                refreshKey={assetRefreshKey}
-              />
-            </div>
+            {elements.length > 0 && (
+              <p className="text-xs text-muted-foreground px-1">
+                Tip: select a placed signature or stamp and press{" "}
+                <kbd className="px-1 py-0.5 rounded border bg-muted font-mono text-[10px]">Delete</kbd> to remove it.
+              </p>
+            )}
           </div>
 
           {/* Main Content - PDF Viewer */}
@@ -439,6 +421,20 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
           </div>
         </div>
       </main>
+
+      <SignatureCreator open={showSignatureCreator} onOpenChange={setShowSignatureCreator} onSave={handleSignatureSaved} />
+
+      <Dialog open={showStampUpload} onOpenChange={setShowStampUpload}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a stamp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label>Select an image file (PNG recommended for transparency)</Label>
+            <Input type="file" accept="image/*" onChange={handleStampUpload} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
