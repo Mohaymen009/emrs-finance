@@ -75,3 +75,44 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return handleApiError(err);
   }
 }
+
+// DELETE /api/admin/users/:id — permanently remove a user. Their past
+// income/expense/payment/audit/login/export records are kept (foreign keys
+// are ON DELETE SET NULL) so financial history and the audit trail survive;
+// the creator/actor just shows as unattributed ("Deleted user" in the UI).
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const admin = await requireAdmin();
+    const { id } = await params;
+
+    const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    if (target.id === admin.id) {
+      return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
+    }
+
+    if (target.role === "ADMIN" && target.isActive) {
+      const otherActiveAdmins = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.role, "ADMIN"), eq(users.isActive, true), ne(users.id, admin.id)));
+      if (otherActiveAdmins.length === 0) {
+        return NextResponse.json({ error: "Cannot delete the only active admin." }, { status: 400 });
+      }
+    }
+
+    await writeAuditLog({
+      userId: admin.id,
+      action: "USER_DELETED",
+      recordId: id,
+      metadata: { username: target.username, fullName: target.fullName },
+    });
+
+    await db.delete(users).where(eq(users.id, id));
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}

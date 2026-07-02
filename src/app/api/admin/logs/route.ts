@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       const rows = await db
         .select({ log: exportLogs, username: users.username, fullName: users.fullName })
         .from(exportLogs)
-        .innerJoin(users, eq(exportLogs.userId, users.id))
+        .leftJoin(users, eq(exportLogs.userId, users.id))
         .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(desc(exportLogs.timestamp))
         .limit(500);
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
         divisionCode: divisions.code,
       })
       .from(auditLogs)
-      .innerJoin(users, eq(auditLogs.userId, users.id))
+      .leftJoin(users, eq(auditLogs.userId, users.id))
       .leftJoin(divisions, eq(auditLogs.divisionId, divisions.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(auditLogs.timestamp))

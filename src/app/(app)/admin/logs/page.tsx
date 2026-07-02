@@ -13,7 +13,7 @@ export default async function AdminLogsPage() {
     db
       .select({ log: auditLogs, username: users.username, divisionCode: divisions.code })
       .from(auditLogs)
-      .innerJoin(users, eq(auditLogs.userId, users.id))
+      .leftJoin(users, eq(auditLogs.userId, users.id))
       .leftJoin(divisions, eq(auditLogs.divisionId, divisions.id))
       .orderBy(desc(auditLogs.timestamp))
       .limit(100),
@@ -26,7 +26,7 @@ export default async function AdminLogsPage() {
     db
       .select({ log: exportLogs, username: users.username })
       .from(exportLogs)
-      .innerJoin(users, eq(exportLogs.userId, users.id))
+      .leftJoin(users, eq(exportLogs.userId, users.id))
       .orderBy(desc(exportLogs.timestamp))
       .limit(50),
   ]);
@@ -49,7 +49,9 @@ export default async function AdminLogsPage() {
               {audit.map((a) => (
                 <tr key={a.log.id} className="border-t border-slate-100">
                   <td className="p-2">{new Date(a.log.timestamp).toLocaleString()}</td>
-                  <td className="p-2">{a.username}</td>
+                  <td className="p-2">
+                    {a.username ?? <span className="text-slate-400 italic">Deleted user</span>}
+                  </td>
                   <td className="p-2">{a.log.action}</td>
                   <td className="p-2">{a.divisionCode ?? "—"}</td>
                   <td className="p-2 font-mono text-xs">{a.log.recordId ?? "—"}</td>
@@ -98,7 +100,9 @@ export default async function AdminLogsPage() {
               {exports.map((e) => (
                 <tr key={e.log.id} className="border-t border-slate-100">
                   <td className="p-2">{new Date(e.log.timestamp).toLocaleString()}</td>
-                  <td className="p-2">{e.username}</td>
+                  <td className="p-2">
+                    {e.username ?? <span className="text-slate-400 italic">Deleted user</span>}
+                  </td>
                   <td className="p-2">{e.log.exportType}</td>
                   <td className="p-2 font-mono text-xs">{JSON.stringify(e.log.filters)}</td>
                 </tr>

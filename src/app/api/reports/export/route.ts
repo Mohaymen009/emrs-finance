@@ -8,6 +8,41 @@ import { writeExportLog, writeAuditLog } from "@/lib/audit";
 import { exportFiltersSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
 
+// Consistent branded look for every exported report: bold white-on-navy
+// frozen header with autofilter, currency-formatted amount columns, thin
+// borders, and light zebra striping on the data rows.
+function styleWorksheet(sheet: ExcelJS.Worksheet, currencyColumnKeys: string[]) {
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 20;
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+    cell.alignment = { vertical: "middle" };
+  });
+
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns?.length ?? 1 } };
+
+  const thinBorder = { style: "thin" as const, color: { argb: "FFE2E8F0" } };
+  for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber++) {
+    const row = sheet.getRow(rowNumber);
+    if (rowNumber > 1 && rowNumber % 2 === 0) {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+      });
+    }
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+    });
+  }
+
+  for (const key of currencyColumnKeys) {
+    const column = sheet.getColumn(key);
+    column.numFmt = '#,##0.00 "AED"';
+    column.alignment = { horizontal: "right" };
+  }
+}
+
 // GET /api/reports/export?type=INCOME|EXPENSE|VAT|PROFIT&division=...&dateFrom=...&dateTo=...&status=...&vatOnly=true
 // Streams back an .xlsx workbook and logs the export (who, what filters, when).
 export async function GET(req: NextRequest) {
@@ -55,8 +90,8 @@ export async function GET(req: NextRequest) {
         { header: "Division", key: "division", width: 20 },
         { header: "Title", key: "title", width: 30 },
         { header: "Date", key: "date", width: 15 },
-        { header: "Amount", key: "amount", width: 15 },
-        { header: "VAT Amount", key: "vat", width: 15 },
+        { header: "Amount", key: "amount", width: 16 },
+        { header: "VAT Amount", key: "vat", width: 16 },
         { header: "Payment Status", key: "status", width: 16 },
       ];
       filtered.forEach((r) =>
@@ -69,6 +104,7 @@ export async function GET(req: NextRequest) {
           status: r.record.paymentStatus,
         })
       );
+      styleWorksheet(sheet, ["amount", "vat"]);
     }
 
     if (type === "EXPENSE" || type === "PROFIT") {
@@ -89,8 +125,8 @@ export async function GET(req: NextRequest) {
         { header: "Division", key: "division", width: 20 },
         { header: "Description", key: "description", width: 30 },
         { header: "Date", key: "date", width: 15 },
-        { header: "Amount", key: "amount", width: 15 },
-        { header: "VAT Amount", key: "vat", width: 15 },
+        { header: "Amount", key: "amount", width: 16 },
+        { header: "VAT Amount", key: "vat", width: 16 },
         { header: "Supplier", key: "supplier", width: 20 },
       ];
       filtered.forEach((r) =>
@@ -103,6 +139,7 @@ export async function GET(req: NextRequest) {
           supplier: r.record.supplierName ?? "",
         })
       );
+      styleWorksheet(sheet, ["amount", "vat"]);
     }
 
     await writeExportLog({ userId: user.id, exportType: type, filters });

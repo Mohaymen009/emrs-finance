@@ -52,6 +52,7 @@ export const auditActionEnum = pgEnum("audit_action", [
   "USER_CREATED",
   "USER_UPDATED",
   "USER_DEACTIVATED",
+  "USER_DELETED",
   "DIVISION_ACCESS_CHANGED",
 ]);
 export const exportTypeEnum = pgEnum("export_type", [
@@ -140,7 +141,7 @@ export const incomeRecords = pgTable(
     hasClientDetails: boolean("has_client_details").notNull().default(false),
     clientId: text("client_id").references(() => clients.id),
     notes: text("notes"),
-    createdById: text("created_by_id").notNull().references(() => users.id),
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -168,7 +169,7 @@ export const expenseRecords = pgTable(
     vatEnabled: boolean("vat_enabled").notNull().default(false),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2 }),
     notes: text("notes"),
-    createdById: text("created_by_id").notNull().references(() => users.id),
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -212,7 +213,7 @@ export const payments = pgTable("payments", {
   incomeRecordId: text("income_record_id").notNull().unique().references(() => incomeRecords.id),
   paymentDate: timestamp("payment_date", { withTimezone: true }).notNull(),
   paymentMethod: paymentMethodEnum("payment_method").notNull(),
-  recordedById: text("recorded_by_id").notNull().references(() => users.id),
+  recordedById: text("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -224,7 +225,7 @@ export const auditLogs = pgTable(
   "audit_logs",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
-    userId: text("user_id").notNull().references(() => users.id),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     action: auditActionEnum("action").notNull(),
     recordId: text("record_id"),
     divisionId: text("division_id").references(() => divisions.id),
@@ -245,7 +246,7 @@ export const loginLogs = pgTable(
     // Nullable: a failed login against a username that doesn't exist has no
     // user to attribute to, but we still want it visible to admins as a
     // security event (attemptedUsername captures what was typed).
-    userId: text("user_id").references(() => users.id),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     attemptedUsername: text("attempted_username"),
     event: text("event").notNull(), // LOGIN_SUCCESS | LOGIN_FAILED | LOGOUT
     ipAddress: text("ip_address"),
@@ -259,7 +260,7 @@ export const exportLogs = pgTable(
   "export_logs",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
-    userId: text("user_id").notNull().references(() => users.id),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     exportType: exportTypeEnum("export_type").notNull(),
     filters: jsonb("filters").notNull(),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
