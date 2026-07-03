@@ -38,10 +38,10 @@ type HistoryRow = {
 
 function StatCard({ label, value, tone }: { label: string; value: string; tone?: "amber" | "green" }) {
   const valueClass =
-    tone === "amber" ? "text-amber-700" : tone === "green" ? "text-green-700" : "text-slate-900";
+    tone === "amber" ? "text-amber-700" : tone === "green" ? "text-green-700" : "text-gray-900";
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-      <p className="text-xs text-slate-500 mb-1">{label}</p>
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-card p-4">
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className={`text-lg font-semibold ${valueClass}`}>{value}</p>
     </div>
   );
@@ -51,8 +51,8 @@ function ContactRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return (
     <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="text-sm text-slate-800 break-words">{value}</dd>
+      <dt className="text-xs text-gray-400">{label}</dt>
+      <dd className="text-sm text-gray-800 break-words">{value}</dd>
     </div>
   );
 }
@@ -133,11 +133,11 @@ export default function ClientDetailClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <Link href="/clients" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+          <Link href="/clients" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             &larr; All clients
           </Link>
-          <h1 className="text-lg font-semibold truncate">{displayName}</h1>
-          {client.companyName && client.name && <p className="text-sm text-slate-500">{client.name}</p>}
+          <h1 className="text-2xl font-semibold tracking-tight truncate">{displayName}</h1>
+          {client.companyName && client.name && <p className="text-sm text-gray-500">{client.name}</p>}
         </div>
         {canEdit && (
           <div className="flex gap-2 shrink-0">
@@ -165,8 +165,8 @@ export default function ClientDetailClient({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Contact Details</p>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-card p-5">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Contact Details</p>
           <dl className="space-y-3">
             <ContactRow label="Client name" value={client.name} />
             <ContactRow label="Company" value={client.companyName} />
@@ -175,53 +175,53 @@ export default function ClientDetailClient({
             <ContactRow label="TRN number" value={client.trnNumber} />
             <ContactRow label="Address" value={client.address} />
             {client.notes && (
-              <div className="border-t border-slate-100 pt-3">
-                <dt className="text-xs text-slate-400">Internal notes</dt>
-                <dd className="text-sm text-slate-700 whitespace-pre-wrap">{client.notes}</dd>
+              <div className="border-t border-gray-100 pt-3">
+                <dt className="text-xs text-gray-400">Internal notes</dt>
+                <dd className="text-sm text-gray-700 whitespace-pre-wrap">{client.notes}</dd>
               </div>
             )}
           </dl>
-          <p className="text-xs text-slate-300 mt-4">
+          <p className="text-xs text-gray-300 mt-4">
             Added {new Date(client.createdAt).toLocaleDateString()}
             {client.updatedAt && <> &middot; updated {new Date(client.updatedAt).toLocaleDateString()}</>}
           </p>
         </div>
 
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Income History</p>
-            <span className="text-xs text-slate-400">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-2xl shadow-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Income History</p>
+            <span className="text-xs text-gray-400">
               {records.length} record{records.length === 1 ? "" : "s"}
             </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th className="px-3 py-2.5">Ref #</th>
-                  <th className="px-3 py-2.5">Department</th>
-                  <th className="px-3 py-2.5">Title</th>
-                  <th className="px-3 py-2.5">Service Date</th>
-                  <th className="px-3 py-2.5 text-right">Amount</th>
-                  <th className="px-3 py-2.5">Status</th>
-                  <th className="px-3 py-2.5">Paid On</th>
+                  <th className="px-4 py-3">Ref #</th>
+                  <th className="px-4 py-3">Department</th>
+                  <th className="px-4 py-3">Title</th>
+                  <th className="px-4 py-3">Service Date</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Paid On</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map((r) => (
-                  <tr key={r.record.id} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50">
-                    <td className="px-3 py-2.5 text-slate-400 font-mono text-xs">
+                  <tr key={r.record.id} className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-400 font-mono text-xs">
                       {formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}
                     </td>
-                    <td className="px-3 py-2.5">{r.divisionName}</td>
-                    <td className="px-3 py-2.5">{r.record.title}</td>
-                    <td className="px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                    <td className="px-4 py-3">{r.divisionName}</td>
+                    <td className="px-4 py-3">{r.record.title}</td>
+                    <td className="px-4 py-3">{new Date(r.record.date).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-medium">
                       {r.record.paymentStatus === "COMPLIMENTARY"
                         ? "Complimentary"
                         : `${Number(r.record.amount).toFixed(2)} AED`}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-4 py-3">
                       <Badge
                         color={
                           r.record.paymentStatus === "PAID"
@@ -234,14 +234,14 @@ export default function ClientDetailClient({
                         {r.record.paymentStatus}
                       </Badge>
                     </td>
-                    <td className="px-3 py-2.5 text-slate-500">
+                    <td className="px-4 py-3 text-gray-500">
                       {r.payment ? new Date(r.payment.paymentDate).toLocaleDateString() : "—"}
                     </td>
                   </tr>
                 ))}
                 {records.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-400">
+                    <td colSpan={7} className="p-6 text-center text-gray-400">
                       No income records for this client yet (within your departments).
                     </td>
                   </tr>

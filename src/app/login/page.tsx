@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const inputClass =
+  "w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm shadow-xs placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/15 transition-[border-color,box-shadow] duration-150";
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -35,40 +38,50 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-xl shadow-sm p-8">
-        <h1 className="text-xl font-semibold mb-1">EMRS Finance Platform</h1>
-        <p className="text-sm text-slate-500 mb-6">Sign in to continue</p>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Username</label>
-            <input
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoFocus
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
-            <input
-              type="password"
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-slate-900 text-white rounded-md py-2 text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
+    <div className="flex-1 flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,rgb(37_99_235/0.06),transparent_55%)]">
+      <div className="w-full max-w-sm animate-page-enter">
+        <div className="flex justify-center mb-6">
+          <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white text-lg font-bold shadow-[0_4px_14px_rgb(37_99_235/0.35)]">
+            E
+          </span>
+        </div>
+        <div className="bg-white border border-gray-200/80 rounded-2xl shadow-pop p-8">
+          <h1 className="text-xl font-semibold tracking-tight mb-1">Welcome back</h1>
+          <p className="text-sm text-gray-500 mb-6">Sign in to your EMRS Finance workspace</p>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+              <input
+                className={inputClass}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <input
+                type="password"
+                className={inputClass}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium shadow-sm shadow-blue-600/25 hover:bg-blue-700 hover:shadow-md hover:shadow-blue-600/25 active:scale-[0.99] disabled:opacity-50 disabled:shadow-none transition-all duration-150"
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-6">EMRS Finance Platform</p>
       </div>
     </div>
   );

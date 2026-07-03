@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 export type DateRange = { dateFrom?: string; dateTo?: string; label: string };
 
 const inputClass =
-  "border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+  "border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow";
 
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -122,7 +122,7 @@ export function DateRangeFilter({ onChange, className = "" }: { onChange: (range
       {preset === "customRange" && (
         <>
           <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={inputClass} />
-          <span className="text-slate-400 text-sm">to</span>
+          <span className="text-gray-400 text-sm">to</span>
           <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={inputClass} />
         </>
       )}

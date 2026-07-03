@@ -25,7 +25,7 @@ export function ExportDialog({
   return (
     <Modal open={open} onClose={onClose} title="Export to Excel" maxWidth="max-w-md">
       <div className="space-y-4">
-        <p className="text-sm text-slate-600">Choose the time frame to include in the export.</p>
+        <p className="text-sm text-gray-600">Choose the time frame to include in the export.</p>
         <DateRangeFilter onChange={setRange} />
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>

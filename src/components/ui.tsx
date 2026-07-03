@@ -9,11 +9,13 @@ import { ButtonHTMLAttributes, ReactNode, useEffect } from "react";
 // regenerate here) — icons are small hand-rolled inline SVGs instead.
 
 const BUTTON_VARIANTS = {
-  primary: "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50",
-  secondary: "border border-slate-300 text-slate-700 hover:bg-slate-50",
-  danger: "bg-red-600 text-white hover:bg-red-700",
-  ghost: "text-slate-600 underline hover:text-slate-900",
-  dangerGhost: "text-red-600 underline hover:text-red-700",
+  primary:
+    "bg-blue-600 text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700 hover:shadow-md hover:shadow-blue-600/25 disabled:opacity-50 disabled:shadow-none",
+  secondary:
+    "bg-white border border-gray-300 text-gray-700 shadow-xs hover:bg-gray-50 hover:border-gray-400 hover:text-gray-900",
+  danger: "bg-red-600 text-white shadow-sm shadow-red-600/20 hover:bg-red-700",
+  ghost: "text-gray-500 underline underline-offset-2 hover:text-gray-900",
+  dangerGhost: "text-red-600 underline underline-offset-2 hover:text-red-700",
 } as const;
 
 // Exposed so non-<button> elements (e.g. an <a> download link) can match the
@@ -22,8 +24,8 @@ const BUTTON_VARIANTS = {
 export function buttonClass(variant: keyof typeof BUTTON_VARIANTS = "primary", className = "") {
   const base =
     variant === "ghost" || variant === "dangerGhost"
-      ? "text-xs transition-colors"
-      : "text-sm rounded-lg px-3 py-1.5 transition-colors active:scale-[0.98] inline-block";
+      ? "text-xs transition-colors duration-150"
+      : "text-sm font-medium rounded-lg px-3.5 py-1.5 transition-all duration-150 active:scale-[0.98] inline-block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
   return `${base} ${BUTTON_VARIANTS[variant]} ${className}`;
 }
 
@@ -31,7 +33,7 @@ export function buttonClass(variant: keyof typeof BUTTON_VARIANTS = "primary", c
 // as a proper button (via the file: pseudo-element) instead of bare text —
 // the rest of the control (filename preview) is left to the browser.
 export const fileInputClass =
-  "block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 file:transition-colors file:cursor-pointer cursor-pointer";
+  "block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 file:transition-colors file:cursor-pointer cursor-pointer";
 
 export function Button({
   variant = "primary",
@@ -49,11 +51,11 @@ export function Button({
 }
 
 const BADGE_COLORS = {
-  green: { pill: "bg-green-100 text-green-700", dot: "bg-green-600" },
-  amber: { pill: "bg-amber-100 text-amber-700", dot: "bg-amber-600" },
-  blue: { pill: "bg-blue-100 text-blue-700", dot: "bg-blue-600" },
-  slate: { pill: "bg-slate-200 text-slate-600", dot: "bg-slate-500" },
-  red: { pill: "bg-red-100 text-red-700", dot: "bg-red-600" },
+  green: { pill: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/15", dot: "bg-emerald-500" },
+  amber: { pill: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20", dot: "bg-amber-500" },
+  blue: { pill: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/15", dot: "bg-blue-500" },
+  slate: { pill: "bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/15", dot: "bg-gray-400" },
+  red: { pill: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/15", dot: "bg-red-500" },
 } as const;
 
 export function Badge({
@@ -99,22 +101,26 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-scale-in"
+      className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-gray-950/40 backdrop-blur-sm p-4 overflow-y-auto animate-fade-scale-in"
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-xl shadow-2xl border border-slate-200 w-full ${maxWidth} my-8 animate-fade-scale-in`}
+        className={`bg-white rounded-2xl shadow-pop border border-gray-200/80 w-full ${maxWidth} my-8 animate-fade-scale-in`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-            <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900 tracking-tight">{title}</h2>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="p-1 -m-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
               <IconX className="w-5 h-5" />
             </button>
           </div>
         )}
-        <div className="p-5">{children}</div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );
@@ -137,7 +143,7 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onClose={onCancel} title={title} maxWidth="max-w-sm">
-      <p className="text-sm text-slate-600 mb-5">{message}</p>
+      <p className="text-sm text-gray-600 mb-5">{message}</p>
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onCancel}>
           Cancel

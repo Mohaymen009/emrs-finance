@@ -19,7 +19,7 @@ import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 type Division = { code: string; name: string };
 
 const inputClass =
-  "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+  "w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow";
 
 const VAT_RATE = 0.05;
 
@@ -255,7 +255,7 @@ export default function ExpenseClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Expenses</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
         <div className="flex gap-2">
           {!isDispatcher && (
             <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
@@ -273,7 +273,7 @@ export default function ExpenseClient({
       {showForm && (
         <form
           onSubmit={submit}
-          className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 space-y-5 animate-fade-slide-in"
+          className="bg-white border border-gray-200 rounded-2xl shadow-card p-5 space-y-5 animate-fade-slide-in"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -290,7 +290,7 @@ export default function ExpenseClient({
               <label className="block text-xs font-medium mb-1">
                 Reference Number <span className="text-red-500">*</span>
               </label>
-              <p className="text-xs text-slate-400 mb-1">Your own invoice/reference number — any format.</p>
+              <p className="text-xs text-gray-400 mb-1">Your own invoice/reference number — any format.</p>
               <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
             </div>
           </div>
@@ -300,7 +300,7 @@ export default function ExpenseClient({
               <label className="block text-xs font-medium mb-1">
                 Purchase / Service Date <span className="text-red-500">*</span>
               </label>
-              <p className="text-xs text-slate-400 mb-1">When we bought the item or received the service.</p>
+              <p className="text-xs text-gray-400 mb-1">When we bought the item or received the service.</p>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
             </div>
           </div>
@@ -308,7 +308,7 @@ export default function ExpenseClient({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1">Payment Date (optional)</label>
-              <p className="text-xs text-slate-400 mb-1">When we actually paid — leave empty if not paid yet.</p>
+              <p className="text-xs text-gray-400 mb-1">When we actually paid — leave empty if not paid yet.</p>
               <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </div>
           </div>
@@ -328,7 +328,7 @@ export default function ExpenseClient({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
             <div>
               <label className="block text-xs font-medium mb-1">
                 Net Amount (AED) <span className="text-red-500">*</span>
@@ -346,7 +346,7 @@ export default function ExpenseClient({
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat-exp" />
               <label htmlFor="vat-exp" className="text-sm">Enable VAT (auto 5%)</label>
@@ -358,28 +358,28 @@ export default function ExpenseClient({
                   placeholder="VAT amount"
                   value={vatAmount}
                   onChange={(e) => setVatAmount(e.target.value)}
-                  className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow"
+                  className="ml-2 border border-gray-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow"
                 />
               )}
             </div>
             {vatEnabled && (
-              <p className="text-xs text-slate-500 mt-1.5">
-                Total charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Total charged (incl. VAT): <span className="font-medium text-gray-700">{totalCharged.toFixed(2)} AED</span>
               </p>
             )}
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <label className="block text-xs font-medium mb-1">
               Receipt (optional — PDF, PNG, JPEG or WEBP, up to 15MB)
             </label>
-            <p className="text-xs text-slate-400 mb-1">
+            <p className="text-xs text-gray-400 mb-1">
               You can also attach or add another receipt later from the record&apos;s detail view.
             </p>
             <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={fileInputClass} />
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <label className="block text-xs font-medium mb-1">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
           </div>
@@ -401,7 +401,7 @@ export default function ExpenseClient({
 
       <div className="flex flex-col md:flex-row gap-2">
         <div className="relative flex-1">
-          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -426,28 +426,28 @@ export default function ExpenseClient({
 
       <DateRangeFilter onChange={setDateRange} />
 
-      <div className="flex items-center justify-between text-sm text-slate-500 px-1">
+      <div className="flex items-center justify-between text-sm text-gray-500 px-1">
         <span>
           {filteredRecords.length} record{filteredRecords.length === 1 ? "" : "s"}
           {dateRange.dateFrom && <> &middot; {dateRange.label}</>}
         </span>
         {/* Dispatchers see only their own records, listed — no totals/sums. */}
-        {!isDispatcher && <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>}
+        {!isDispatcher && <span className="font-medium text-gray-700">Total: {filteredTotal.toFixed(2)} AED</span>}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             <tr>
-              <th className="px-2 md:px-3 py-2.5">Ref #</th>
-              <th className="px-2 md:px-3 py-2.5">Department</th>
-              <th className="px-2 md:px-3 py-2.5">Description</th>
-              <th className="px-2 md:px-3 py-2.5">Category</th>
-              <th className="px-2 md:px-3 py-2.5">Purchase Date</th>
-              <th className="px-2 md:px-3 py-2.5">Paid On</th>
-              <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
-              <th className="px-2 md:px-3 py-2.5">Supplier</th>
-              <th className="px-2 md:px-3 py-2.5">Receipt</th>
+              <th className="px-3 md:px-4 py-3">Ref #</th>
+              <th className="px-3 md:px-4 py-3">Department</th>
+              <th className="px-3 md:px-4 py-3">Description</th>
+              <th className="px-3 md:px-4 py-3">Category</th>
+              <th className="px-3 md:px-4 py-3">Purchase Date</th>
+              <th className="px-3 md:px-4 py-3">Paid On</th>
+              <th className="px-3 md:px-4 py-3 text-right">Amount</th>
+              <th className="px-3 md:px-4 py-3">Supplier</th>
+              <th className="px-3 md:px-4 py-3">Receipt</th>
             </tr>
           </thead>
           <tbody>
@@ -457,26 +457,26 @@ export default function ExpenseClient({
               <tr
                 key={r.record.id}
                 onClick={() => setSelected(r)}
-                className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
+                className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/60 transition-colors cursor-pointer"
               >
-                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}</td>
-                <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
-                <td className="px-2 md:px-3 py-2.5">{r.record.description}</td>
-                <td className="px-2 md:px-3 py-2.5">{r.record.category ?? "—"}</td>
-                <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
-                <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                <td className="px-3 md:px-4 py-3 text-gray-400 font-mono text-xs">{formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}</td>
+                <td className="px-3 md:px-4 py-3">{r.divisionName}</td>
+                <td className="px-3 md:px-4 py-3">{r.record.description}</td>
+                <td className="px-3 md:px-4 py-3">{r.record.category ?? "—"}</td>
+                <td className="px-3 md:px-4 py-3">{new Date(r.record.date).toLocaleDateString()}</td>
+                <td className="px-3 md:px-4 py-3 text-gray-500">
                   {r.record.paymentDate ? new Date(r.record.paymentDate).toLocaleDateString() : "—"}
                 </td>
-                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{Number(r.record.amount).toFixed(2)} AED</td>
-                <td className="px-2 md:px-3 py-2.5">{r.record.supplierName ?? "—"}</td>
-                <td className="px-2 md:px-3 py-2.5">
+                <td className="px-3 md:px-4 py-3 text-right tabular-nums font-medium">{Number(r.record.amount).toFixed(2)} AED</td>
+                <td className="px-3 md:px-4 py-3">{r.record.supplierName ?? "—"}</td>
+                <td className="px-3 md:px-4 py-3">
                   {r.receipts?.length ? (
-                    <span className="text-slate-600 text-xs">{r.receipts.length} file{r.receipts.length > 1 ? "s" : ""}</span>
+                    <span className="text-gray-600 text-xs">{r.receipts.length} file{r.receipts.length > 1 ? "s" : ""}</span>
                   ) : (
-                    <span className="text-slate-400 text-xs">none</span>
+                    <span className="text-gray-400 text-xs">none</span>
                   )}
                   {isDispatcher && perms.isOwner && !perms.canEdit && (
-                    <span className="block text-[11px] text-slate-400">
+                    <span className="block text-[11px] text-gray-400">
                       {perms.pendingRequest ? "Awaiting approval" : "Read-only"}
                     </span>
                   )}
@@ -485,7 +485,7 @@ export default function ExpenseClient({
               );
             })}
             {filteredRecords.length === 0 && (
-              <tr><td colSpan={9} className="p-6 text-center text-slate-400">No expense records match.</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-gray-400">No expense records match.</td></tr>
             )}
           </tbody>
         </table>
@@ -520,8 +520,8 @@ export default function ExpenseClient({
 function DetailRow({ label, value, full }: { label: string; value: ReactNode; full?: boolean }) {
   return (
     <div className={full ? "col-span-2" : undefined}>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="text-slate-900 break-words">{value}</dd>
+      <dt className="text-xs text-gray-400">{label}</dt>
+      <dd className="text-gray-900 break-words">{value}</dd>
     </div>
   );
 }
@@ -676,8 +676,8 @@ function ExpenseDetailModal({
               {record.notes && <DetailRow label="Notes" value={record.notes} full />}
             </dl>
 
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Receipts</p>
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Receipts</p>
               {row.receipts?.length ? (
                 <ul className="space-y-1 mb-2">
                   {row.receipts.map((rc: any) => (
@@ -685,16 +685,16 @@ function ExpenseDetailModal({
                       <a
                         href={`/api/files/receipt/${rc.id}`}
                         target="_blank"
-                        className="text-indigo-600 underline text-sm hover:text-indigo-800 inline-flex items-center gap-1"
+                        className="text-blue-600 underline text-sm hover:text-blue-800 inline-flex items-center gap-1"
                       >
                         <IconPaperclip className="w-3.5 h-3.5" /> {rc.fileName}
-                        <span className="text-slate-400 no-underline text-xs">(click to preview)</span>
+                        <span className="text-gray-400 no-underline text-xs">(click to preview)</span>
                       </a>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-400 mb-2">No receipt attached.</p>
+                <p className="text-sm text-gray-400 mb-2">No receipt attached.</p>
               )}
               {perms.canEdit && (
                 <div className="flex items-center gap-2">
@@ -709,9 +709,9 @@ function ExpenseDetailModal({
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             {(perms.canEdit || perms.canDelete) && (
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
                 {perms.isOwner && !perms.canEdit && (
-                  <span className="text-xs text-slate-400 mr-auto">
+                  <span className="text-xs text-gray-400 mr-auto">
                     {perms.pendingRequest ? "Edit request awaiting admin approval" : "Edit window expired"}
                   </span>
                 )}
@@ -791,7 +791,7 @@ function ExpenseDetailModal({
                 />
               </div>
             </div>
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-gray-100 pt-4">
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat-exp-edit" />
                 <label htmlFor="vat-exp-edit" className="text-sm">Enable VAT (auto 5%)</label>
@@ -802,17 +802,17 @@ function ExpenseDetailModal({
                     min="0"
                     value={vatAmount}
                     onChange={(e) => setVatAmount(e.target.value)}
-                    className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32"
+                    className="ml-2 border border-gray-300 rounded-lg px-2 py-1 text-sm w-32"
                   />
                 )}
               </div>
               {vatEnabled && (
-                <p className="text-xs text-slate-500 mt-1.5">
-                  Total charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Total charged (incl. VAT): <span className="font-medium text-gray-700">{totalCharged.toFixed(2)} AED</span>
                 </p>
               )}
             </div>
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-gray-100 pt-4">
               <label className="block text-xs font-medium mb-1">Notes</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
             </div>

@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+// Self-hosted at build time by next/font — no runtime request to Google.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "EMRS Finance Platform",
@@ -12,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans">{children}</body>
+    <html lang="en" className={`h-full antialiased ${inter.variable}`}>
+      <body className="min-h-full flex flex-col bg-background text-foreground font-sans">{children}</body>
     </html>
   );
 }

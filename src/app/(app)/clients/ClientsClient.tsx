@@ -6,7 +6,7 @@ import { Button, Badge, IconSearch } from "@/components/ui";
 import { ClientFormModal, type ClientFormValues } from "./ClientFormModal";
 
 const inputClass =
-  "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+  "w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow";
 
 type ClientRow = {
   client: {
@@ -38,18 +38,18 @@ export function clientDisplayName(c: { name: string | null; companyName: string 
 function ClientsTable({ rows, emptyMessage }: { rows: ClientRow[]; emptyMessage: string }) {
   const router = useRouter();
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-card overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+        <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
           <tr>
-            <th className="px-2 md:px-3 py-2.5">Client</th>
-            <th className="px-2 md:px-3 py-2.5">Contact</th>
-            <th className="px-2 md:px-3 py-2.5">TRN</th>
-            <th className="px-2 md:px-3 py-2.5 text-right">Records</th>
-            <th className="px-2 md:px-3 py-2.5 text-right">Total Billed</th>
-            <th className="px-2 md:px-3 py-2.5 text-right">Outstanding</th>
-            <th className="px-2 md:px-3 py-2.5">Last Activity</th>
-            <th className="px-2 md:px-3 py-2.5">Last Payment</th>
+            <th className="px-3 md:px-4 py-3">Client</th>
+            <th className="px-3 md:px-4 py-3">Contact</th>
+            <th className="px-3 md:px-4 py-3">TRN</th>
+            <th className="px-3 md:px-4 py-3 text-right">Records</th>
+            <th className="px-3 md:px-4 py-3 text-right">Total Billed</th>
+            <th className="px-3 md:px-4 py-3 text-right">Outstanding</th>
+            <th className="px-3 md:px-4 py-3">Last Activity</th>
+            <th className="px-3 md:px-4 py-3">Last Payment</th>
           </tr>
         </thead>
         <tbody>
@@ -57,40 +57,40 @@ function ClientsTable({ rows, emptyMessage }: { rows: ClientRow[]; emptyMessage:
             <tr
               key={r.client.id}
               onClick={() => router.push(`/clients/${r.client.id}`)}
-              className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
+              className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/60 transition-colors cursor-pointer"
             >
-              <td className="px-2 md:px-3 py-2.5">
-                <span className="font-medium text-slate-800">{clientDisplayName(r.client)}</span>
+              <td className="px-3 md:px-4 py-3">
+                <span className="font-medium text-gray-800">{clientDisplayName(r.client)}</span>
                 {r.client.companyName && r.client.name && (
-                  <span className="block text-xs text-slate-400">{r.client.name}</span>
+                  <span className="block text-xs text-gray-400">{r.client.name}</span>
                 )}
               </td>
-              <td className="px-2 md:px-3 py-2.5 text-slate-600">
+              <td className="px-3 md:px-4 py-3 text-gray-600">
                 {r.client.phone && <span className="block">{r.client.phone}</span>}
-                {r.client.email && <span className="block text-xs text-slate-400">{r.client.email}</span>}
-                {!r.client.phone && !r.client.email && <span className="text-slate-300">—</span>}
+                {r.client.email && <span className="block text-xs text-gray-400">{r.client.email}</span>}
+                {!r.client.phone && !r.client.email && <span className="text-gray-300">—</span>}
               </td>
-              <td className="px-2 md:px-3 py-2.5 font-mono text-xs text-slate-500">{r.client.trnNumber ?? "—"}</td>
-              <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">{r.recordCount}</td>
-              <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{r.totalBilled.toFixed(2)} AED</td>
-              <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">
+              <td className="px-3 md:px-4 py-3 font-mono text-xs text-gray-500">{r.client.trnNumber ?? "—"}</td>
+              <td className="px-3 md:px-4 py-3 text-right tabular-nums">{r.recordCount}</td>
+              <td className="px-3 md:px-4 py-3 text-right tabular-nums font-medium">{r.totalBilled.toFixed(2)} AED</td>
+              <td className="px-3 md:px-4 py-3 text-right tabular-nums">
                 {r.outstanding > 0 ? (
                   <Badge color="amber">{r.outstanding.toFixed(2)} AED</Badge>
                 ) : (
-                  <span className="text-slate-400">—</span>
+                  <span className="text-gray-400">—</span>
                 )}
               </td>
-              <td className="px-2 md:px-3 py-2.5 text-slate-500">
+              <td className="px-3 md:px-4 py-3 text-gray-500">
                 {r.lastActivity ? new Date(r.lastActivity).toLocaleDateString() : "—"}
               </td>
-              <td className="px-2 md:px-3 py-2.5 text-slate-500">
+              <td className="px-3 md:px-4 py-3 text-gray-500">
                 {r.lastPayment ? new Date(r.lastPayment).toLocaleDateString() : "—"}
               </td>
             </tr>
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={8} className="p-6 text-center text-slate-400">
+              <td colSpan={8} className="p-6 text-center text-gray-400">
                 {emptyMessage}
               </td>
             </tr>
@@ -160,7 +160,7 @@ function DispatcherClientSearch({ canEdit }: { canEdit: boolean }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Clients</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
         {canEdit && (
           <Button variant="primary" onClick={() => setShowCreate(true)}>
             + New Client
@@ -168,14 +168,14 @@ function DispatcherClientSearch({ canEdit }: { canEdit: boolean }) {
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card p-5">
         <p className="text-sm font-medium mb-1">Look up a client</p>
-        <p className="text-xs text-slate-400 mb-3">
+        <p className="text-xs text-gray-400 mb-3">
           For security, client details are only shown after a search — enter a name/company or phone number.
         </p>
         <form onSubmit={search} className="flex flex-col md:flex-row gap-2">
           <div className="relative flex-1">
-            <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -198,7 +198,7 @@ function DispatcherClientSearch({ canEdit }: { canEdit: boolean }) {
 
       {results !== null && (
         <>
-          <p className="text-sm text-slate-500 px-1">
+          <p className="text-sm text-gray-500 px-1">
             {results.length} client{results.length === 1 ? "" : "s"} found
           </p>
           <ClientsTable rows={results} emptyMessage="No clients match that name or phone number." />
@@ -283,7 +283,7 @@ export default function ClientsClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Clients</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
         {canEdit && (
           <Button variant="primary" onClick={() => setShowCreate(true)}>
             + New Client
@@ -293,7 +293,7 @@ export default function ClientsClient({
 
       <div className="flex flex-col md:flex-row gap-2">
         <div className="relative flex-1">
-          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -307,19 +307,19 @@ export default function ClientsClient({
           <option value="billed">Highest total billed</option>
           <option value="outstanding">Highest outstanding</option>
         </select>
-        <label className="flex items-center gap-2 text-sm text-slate-600 md:w-48 px-1">
+        <label className="flex items-center gap-2 text-sm text-gray-600 md:w-48 px-1">
           <input type="checkbox" checked={onlyOutstanding} onChange={(e) => setOnlyOutstanding(e.target.checked)} />
           With outstanding only
         </label>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-slate-500 px-1">
+      <div className="flex items-center justify-between text-sm text-gray-500 px-1">
         <span>
           {filtered.length} client{filtered.length === 1 ? "" : "s"}
         </span>
         <span>
-          Billed: <span className="font-medium text-slate-700">{totals.billed.toFixed(2)} AED</span>
-          <span className="mx-2 text-slate-300">|</span>
+          Billed: <span className="font-medium text-gray-700">{totals.billed.toFixed(2)} AED</span>
+          <span className="mx-2 text-gray-300">|</span>
           Outstanding: <span className="font-medium text-amber-700">{totals.outstanding.toFixed(2)} AED</span>
         </span>
       </div>

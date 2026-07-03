@@ -15,20 +15,22 @@ import DashboardDateFilter from "./DashboardDateFilter";
 
 function StatCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "amber" }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow p-4">
-      <p className="text-xs text-slate-500 mb-1">{label}</p>
-      <p className={`text-lg font-semibold ${tone === "amber" ? "text-amber-700" : ""}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 p-5">
+      <p className="text-xs font-medium text-gray-500 mb-1.5">{label}</p>
+      <p className={`text-xl font-semibold tracking-tight tabular-nums ${tone === "amber" ? "text-amber-600" : "text-gray-900"}`}>
+        {value}
+      </p>
+      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
   );
 }
 
 function Panel({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
-      <div className="mb-4">
-        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{title}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-card p-6">
+      <div className="mb-5">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
+        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
       </div>
       {children}
     </div>
@@ -99,13 +101,13 @@ export default async function DashboardPage({
   return (
     <div className="space-y-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Dashboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <DashboardDateFilter />
       </div>
 
       {combined && (
         <section>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Company-wide (Admin only)
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -125,7 +127,7 @@ export default async function DashboardPage({
 
       {divisionStats.map(({ division, stats }) => (
         <section key={division.id}>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{division.name}</h2>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{division.name}</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <StatCard label="Total Income" value={fmt(stats.totalIncome)} />
             <StatCard label="Total Expenses" value={fmt(stats.totalExpenses)} />
@@ -143,7 +145,7 @@ export default async function DashboardPage({
 
       {visibleIds.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Analytics</h2>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Analytics</h2>
 
           <Panel title="Income vs Expenses" sub="Last 12 months, across your departments (not affected by the date filter)">
             <MonthlyTrendChart data={trend} />
@@ -190,9 +192,9 @@ export default async function DashboardPage({
 
             <Panel title="Top Clients by Revenue" sub={rangeSub}>
               {clients.length === 0 ? (
-                <p className="text-sm text-slate-400">No client-linked income for this period.</p>
+                <p className="text-sm text-gray-400">No client-linked income for this period.</p>
               ) : (
-                <ul className="divide-y divide-slate-100">
+                <ul className="divide-y divide-gray-100">
                   {clients.map((c, i) => (
                     <li key={c.clientId} className="py-2.5 first:pt-0 last:pb-0">
                       <Link
@@ -200,10 +202,10 @@ export default async function DashboardPage({
                         className="flex items-center justify-between gap-3 group"
                       >
                         <span className="flex items-center gap-2.5 min-w-0">
-                          <span className="h-6 w-6 shrink-0 rounded-full bg-indigo-50 text-indigo-600 text-xs font-semibold flex items-center justify-center">
+                          <span className="h-6 w-6 shrink-0 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold flex items-center justify-center">
                             {i + 1}
                           </span>
-                          <span className="text-sm text-slate-700 truncate group-hover:text-indigo-700 transition-colors">
+                          <span className="text-sm text-gray-700 truncate group-hover:text-blue-700 transition-colors">
                             {c.displayName}
                           </span>
                         </span>
@@ -226,7 +228,7 @@ export default async function DashboardPage({
       )}
 
       {divisionStats.length === 0 && !combined && (
-        <p className="text-sm text-slate-500">You have not been granted access to any department yet.</p>
+        <p className="text-sm text-gray-500">You have not been granted access to any department yet.</p>
       )}
     </div>
   );

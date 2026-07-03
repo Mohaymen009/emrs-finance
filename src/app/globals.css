@@ -4,29 +4,31 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Premium neutral palette — gray scale with a deep professional blue accent.
+     Cards are pure white on a soft #F7F8FA canvas with #E5E7EB hairlines. */
+  --background: #f7f8fa;
+  --foreground: #111827;
 
-  /* shadcn/radix tokens used by the invoice tool — matched to the app's
-     existing slate/indigo palette so it reads as one product. */
+  /* shadcn/radix tokens used by the invoice tool — kept in sync with the
+     app-wide gray/blue design language so it reads as one product. */
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #111827;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #4f46e5;
+  --popover-foreground: #111827;
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #eef2ff;
-  --accent-foreground: #4338ca;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #1f2937;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #eff6ff;
+  --accent-foreground: #1d4ed8;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #6366f1;
-  --radius: 0.5rem;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #2563eb;
+  --radius: 0.75rem;
 
   /* Printed-document branding for invoices/quotations/receipts/SOAs — kept
      distinct from the app chrome above since these render on the PDF a
@@ -68,12 +70,31 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  /* Layered "glass-and-paper" elevation: cards rest on the canvas with a
+     barely-there shadow, lift slightly on hover, and overlays float. */
+  --shadow-card: 0 1px 2px 0 rgb(17 24 39 / 0.04), 0 1px 3px 0 rgb(17 24 39 / 0.04);
+  --shadow-card-hover: 0 4px 6px -2px rgb(17 24 39 / 0.05), 0 12px 24px -8px rgb(17 24 39 / 0.08);
+  --shadow-pop: 0 10px 20px -12px rgb(17 24 39 / 0.14), 0 24px 48px -16px rgb(17 24 39 / 0.18);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-inter), "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter's open digits/letters */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Financial figures line up in columns everywhere without per-cell classes. */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgb(37 99 235 / 0.15);
 }
 
 /* Custom scrollbar used by the invoice tool's scrollable panes */
@@ -98,8 +119,13 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes fade-scale-in {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
 }
-.animate-fade-slide-in { animation: fade-slide-in 0.18s ease-out; }
-.animate-fade-scale-in { animation: fade-scale-in 0.15s ease-out; }
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-slide-in { animation: fade-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-fade-scale-in { animation: fade-scale-in 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-page-enter { animation: page-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1); }

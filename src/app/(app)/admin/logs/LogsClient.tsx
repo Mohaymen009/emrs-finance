@@ -15,7 +15,7 @@ const TYPE_LABEL: Record<LogType, string> = {
 
 function DeleteRowButton({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} aria-label="Delete entry" className="text-slate-300 hover:text-red-600 transition-colors">
+    <button onClick={onClick} aria-label="Delete entry" className="text-gray-300 hover:text-red-600 transition-colors">
       <IconTrash className="w-3.5 h-3.5" />
     </button>
   );
@@ -72,7 +72,7 @@ export default function LogsClient({
 
   return (
     <div className="space-y-10">
-      <h1 className="text-lg font-semibold">System Monitoring (Admin)</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">System Monitoring (Admin)</h1>
 
       <CollapsibleSection
         title="Audit Log"
@@ -83,9 +83,9 @@ export default function LogsClient({
           )
         }
       >
-        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Action</th>
                 <th className="p-2">Department</th><th className="p-2">Record</th><th className="p-2 w-8"></th>
@@ -93,10 +93,10 @@ export default function LogsClient({
             </thead>
             <tbody>
               {audit.map((a) => (
-                <tr key={a.log.id} className="border-t border-slate-100">
+                <tr key={a.log.id} className="border-t border-gray-100">
                   <td className="p-2">{new Date(a.log.timestamp).toLocaleString()}</td>
                   <td className="p-2">
-                    {a.username ?? <span className="text-slate-400 italic">Deleted user</span>}
+                    {a.username ?? <span className="text-gray-400 italic">Deleted user</span>}
                   </td>
                   <td className="p-2">{a.log.action}</td>
                   <td className="p-2">{a.divisionCode ?? "—"}</td>
@@ -107,7 +107,7 @@ export default function LogsClient({
                 </tr>
               ))}
               {audit.length === 0 && (
-                <tr><td colSpan={6} className="p-4 text-center text-slate-400">No entries.</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center text-gray-400">No entries.</td></tr>
               )}
             </tbody>
           </table>
@@ -123,14 +123,14 @@ export default function LogsClient({
           )
         }
       >
-        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr><th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Event</th><th className="p-2">IP</th><th className="p-2 w-8"></th></tr>
             </thead>
             <tbody>
               {logins.map((l) => (
-                <tr key={l.log.id} className="border-t border-slate-100">
+                <tr key={l.log.id} className="border-t border-gray-100">
                   <td className="p-2">{new Date(l.log.timestamp).toLocaleString()}</td>
                   <td className="p-2">
                     {l.username ?? (
@@ -147,7 +147,7 @@ export default function LogsClient({
                 </tr>
               ))}
               {logins.length === 0 && (
-                <tr><td colSpan={5} className="p-4 text-center text-slate-400">No entries.</td></tr>
+                <tr><td colSpan={5} className="p-4 text-center text-gray-400">No entries.</td></tr>
               )}
             </tbody>
           </table>
@@ -163,17 +163,17 @@ export default function LogsClient({
           )
         }
       >
-        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr><th className="p-2">Time</th><th className="p-2">User</th><th className="p-2">Type</th><th className="p-2">Filters</th><th className="p-2 w-8"></th></tr>
             </thead>
             <tbody>
               {exports.map((e) => (
-                <tr key={e.log.id} className="border-t border-slate-100">
+                <tr key={e.log.id} className="border-t border-gray-100">
                   <td className="p-2">{new Date(e.log.timestamp).toLocaleString()}</td>
                   <td className="p-2">
-                    {e.username ?? <span className="text-slate-400 italic">Deleted user</span>}
+                    {e.username ?? <span className="text-gray-400 italic">Deleted user</span>}
                   </td>
                   <td className="p-2">{e.log.exportType}</td>
                   <td className="p-2 font-mono text-xs">{JSON.stringify(e.log.filters)}</td>
@@ -183,7 +183,7 @@ export default function LogsClient({
                 </tr>
               ))}
               {exports.length === 0 && (
-                <tr><td colSpan={5} className="p-4 text-center text-slate-400">No entries.</td></tr>
+                <tr><td colSpan={5} className="p-4 text-center text-gray-400">No entries.</td></tr>
               )}
             </tbody>
           </table>

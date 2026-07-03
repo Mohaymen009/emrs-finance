@@ -33,13 +33,13 @@ export function CollapsibleSection({
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={`w-4 h-4 text-slate-400 transition-transform ${open ? "rotate-90" : ""}`}
+            className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-90" : ""}`}
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase group-hover:text-slate-700 transition-colors">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider group-hover:text-gray-600 transition-colors">
             {title}
-            {count !== undefined && <span className="text-slate-400 normal-case font-normal"> ({count})</span>}
+            {count !== undefined && <span className="text-gray-400 normal-case font-normal"> ({count})</span>}
           </h2>
         </button>
         {action}

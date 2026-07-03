@@ -22,7 +22,7 @@ type Division = { code: string; name: string };
 const PAYMENT_METHODS = ["POS", "TABBY", "BANK_TRANSFER", "CASH", "STRIPE", "COMPLIMENTARY"];
 
 const inputClass =
-  "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+  "w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow";
 
 const VAT_RATE = 0.05;
 
@@ -109,10 +109,10 @@ function AmountWithDiscountFields({
         )}
       </div>
       {discountType && discountAmount > 0 && (
-        <p className="text-xs text-slate-500">
-          Discount: <span className="font-medium text-slate-700">−{discountAmount.toFixed(2)} AED</span>
-          <span className="mx-2 text-slate-300">|</span>
-          Net after discount: <span className="font-medium text-slate-700">{net.toFixed(2)} AED</span>
+        <p className="text-xs text-gray-500">
+          Discount: <span className="font-medium text-gray-700">−{discountAmount.toFixed(2)} AED</span>
+          <span className="mx-2 text-gray-300">|</span>
+          Net after discount: <span className="font-medium text-gray-700">{net.toFixed(2)} AED</span>
         </p>
       )}
     </div>
@@ -430,7 +430,7 @@ export default function IncomeClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Income</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Income</h1>
         <div className="flex gap-2">
           {!isDispatcher && (
             <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
@@ -448,7 +448,7 @@ export default function IncomeClient({
       {showForm && (
         <form
           onSubmit={submit}
-          className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 space-y-5 animate-fade-slide-in"
+          className="bg-white border border-gray-200 rounded-2xl shadow-card p-5 space-y-5 animate-fade-slide-in"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -465,7 +465,7 @@ export default function IncomeClient({
               <label className="block text-xs font-medium mb-1">
                 Reference Number <span className="text-red-500">*</span>
               </label>
-              <p className="text-xs text-slate-400 mb-1">Your own invoice/reference number — any format.</p>
+              <p className="text-xs text-gray-400 mb-1">Your own invoice/reference number — any format.</p>
               <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
             </div>
           </div>
@@ -475,7 +475,7 @@ export default function IncomeClient({
               <label className="block text-xs font-medium mb-1">
                 Service Date <span className="text-red-500">*</span>
               </label>
-              <p className="text-xs text-slate-400 mb-1">When the service was performed.</p>
+              <p className="text-xs text-gray-400 mb-1">When the service was performed.</p>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
             </div>
             <div>
@@ -486,7 +486,7 @@ export default function IncomeClient({
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4 space-y-4">
+          <div className="border-t border-gray-100 pt-4 space-y-4">
             {paymentStatus !== "COMPLIMENTARY" ? (
               <AmountWithDiscountFields
                 amount={amount}
@@ -500,7 +500,7 @@ export default function IncomeClient({
             ) : (
               <div>
                 <label className="block text-xs font-medium mb-1">Amount Charged (AED)</label>
-                <div className="w-full border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-sm text-slate-500">
+                <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm text-gray-500">
                   Complimentary — recorded at AED 0.00
                 </div>
               </div>
@@ -522,7 +522,7 @@ export default function IncomeClient({
                   <option value="COMPLIMENTARY">Complimentary</option>
                 </select>
                 {isDispatcher && (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-gray-400 mt-1">
                     Create it as Unpaid, then mark it paid yourself within your edit window — or ask an admin.
                   </p>
                 )}
@@ -531,7 +531,7 @@ export default function IncomeClient({
           </div>
 
           {paymentStatus === "PAID" && !isDispatcher && (
-            <div className="bg-slate-50 rounded-lg p-3 animate-fade-slide-in grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-50 rounded-lg p-3 animate-fade-slide-in grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium mb-1">
                   Payment Method <span className="text-red-500">*</span>
@@ -546,7 +546,7 @@ export default function IncomeClient({
                 <label className="block text-xs font-medium mb-1">
                   Payment Date <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-slate-400 mb-1">When the client actually paid.</p>
+                <p className="text-xs text-gray-400 mb-1">When the client actually paid.</p>
                 <input
                   type="date"
                   value={paymentDate}
@@ -559,7 +559,7 @@ export default function IncomeClient({
                 <label className="block text-xs font-medium mb-1">
                   Net Amount Received (AED) <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-slate-400 mb-1">
+                <p className="text-xs text-gray-400 mb-1">
                   The actual amount that landed after processor fees/deductions.
                 </p>
                 <input
@@ -575,7 +575,7 @@ export default function IncomeClient({
             </div>
           )}
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat" />
               <label htmlFor="vat" className="text-sm">Enable VAT (auto 5%)</label>
@@ -587,40 +587,40 @@ export default function IncomeClient({
                   placeholder="VAT amount"
                   value={vatAmount}
                   onChange={(e) => setVatAmount(e.target.value)}
-                  className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow"
+                  className="ml-2 border border-gray-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow"
                 />
               )}
             </div>
             {vatEnabled && paymentStatus !== "COMPLIMENTARY" && (
-              <p className="text-xs text-slate-500 mt-1.5">
-                Total (after discount, incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Total (after discount, incl. VAT): <span className="font-medium text-gray-700">{totalCharged.toFixed(2)} AED</span>
               </p>
             )}
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium">Client details (optional)</p>
               <Button type="button" variant="secondary" onClick={() => setShowClientPicker(true)}>
                 Select Existing Client
               </Button>
             </div>
-            <p className="text-xs text-slate-400 mb-3">
+            <p className="text-xs text-gray-400 mb-3">
               Choose exactly which client fields to attach to this record — you don&apos;t have to fill them all in.
             </p>
             {clientMatches.length > 0 && (
-              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-3 animate-fade-slide-in space-y-2">
-                <p className="text-xs text-indigo-700">Found existing client{clientMatches.length > 1 ? "s" : ""} with a matching name:</p>
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 animate-fade-slide-in space-y-2">
+                <p className="text-xs text-blue-700">Found existing client{clientMatches.length > 1 ? "s" : ""} with a matching name:</p>
                 {clientMatches.map((m) => (
                   <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-slate-700">
+                    <span className="text-gray-700">
                       {m.companyName || m.name}
-                      {m.companyName && m.name ? <span className="text-slate-400"> — {m.name}</span> : null}
+                      {m.companyName && m.name ? <span className="text-gray-400"> — {m.name}</span> : null}
                     </span>
                     <Button type="button" variant="secondary" onClick={() => reuseClient(m)}>Use these details</Button>
                   </div>
                 ))}
-                <button type="button" onClick={() => setDismissedClientMatch(true)} className="text-xs text-slate-400 underline">
+                <button type="button" onClick={() => setDismissedClientMatch(true)} className="text-xs text-gray-400 underline">
                   Dismiss
                 </button>
               </div>
@@ -648,17 +648,17 @@ export default function IncomeClient({
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <label className="block text-xs font-medium mb-1">
               Invoice (optional — PDF, PNG, JPEG or WEBP, up to 15MB)
             </label>
-            <p className="text-xs text-slate-400 mb-1">
+            <p className="text-xs text-gray-400 mb-1">
               You can also attach or add another invoice later from the record&apos;s detail view.
             </p>
             <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={fileInputClass} />
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-gray-100 pt-4">
             <label className="block text-xs font-medium mb-1">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
           </div>
@@ -680,7 +680,7 @@ export default function IncomeClient({
 
       <div className="flex flex-col md:flex-row gap-2">
         <div className="relative flex-1">
-          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -704,7 +704,7 @@ export default function IncomeClient({
 
       <DateRangeFilter onChange={setDateRange} />
 
-      <div className="flex items-center justify-between text-sm text-slate-500 px-1">
+      <div className="flex items-center justify-between text-sm text-gray-500 px-1">
         <span>
           {filteredRecords.length} record{filteredRecords.length === 1 ? "" : "s"}
           {dateRange.dateFrom && <> &middot; {dateRange.label}</>}
@@ -715,27 +715,27 @@ export default function IncomeClient({
             {filteredOutstanding > 0 && (
               <>
                 <span className="text-amber-700">Outstanding: {filteredOutstanding.toFixed(2)} AED</span>
-                <span className="mx-2 text-slate-300">|</span>
+                <span className="mx-2 text-gray-300">|</span>
               </>
             )}
-            <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
+            <span className="font-medium text-gray-700">Total: {filteredTotal.toFixed(2)} AED</span>
           </span>
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             <tr>
-              <th className="px-2 md:px-3 py-2.5">Ref #</th>
-              <th className="px-2 md:px-3 py-2.5">Department</th>
-              <th className="px-2 md:px-3 py-2.5">Title</th>
-              <th className="px-2 md:px-3 py-2.5">Service Date</th>
-              <th className="px-2 md:px-3 py-2.5">Paid On</th>
-              <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
-              <th className="px-2 md:px-3 py-2.5">Status</th>
-              <th className="px-2 md:px-3 py-2.5">Client</th>
-              <th className="px-2 md:px-3 py-2.5"></th>
+              <th className="px-3 md:px-4 py-3">Ref #</th>
+              <th className="px-3 md:px-4 py-3">Department</th>
+              <th className="px-3 md:px-4 py-3">Title</th>
+              <th className="px-3 md:px-4 py-3">Service Date</th>
+              <th className="px-3 md:px-4 py-3">Paid On</th>
+              <th className="px-3 md:px-4 py-3 text-right">Amount</th>
+              <th className="px-3 md:px-4 py-3">Status</th>
+              <th className="px-3 md:px-4 py-3">Client</th>
+              <th className="px-3 md:px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -745,19 +745,19 @@ export default function IncomeClient({
               <tr
                 key={r.record.id}
                 onClick={() => setSelected(r)}
-                className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
+                className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/60 transition-colors cursor-pointer"
               >
-                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}</td>
-                <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
-                <td className="px-2 md:px-3 py-2.5">{r.record.title}</td>
-                <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
-                <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                <td className="px-3 md:px-4 py-3 text-gray-400 font-mono text-xs">{formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}</td>
+                <td className="px-3 md:px-4 py-3">{r.divisionName}</td>
+                <td className="px-3 md:px-4 py-3">{r.record.title}</td>
+                <td className="px-3 md:px-4 py-3">{new Date(r.record.date).toLocaleDateString()}</td>
+                <td className="px-3 md:px-4 py-3 text-gray-500">
                   {r.payment ? new Date(r.payment.paymentDate).toLocaleDateString() : "—"}
                 </td>
-                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">
+                <td className="px-3 md:px-4 py-3 text-right tabular-nums font-medium">
                   {r.record.paymentStatus === "COMPLIMENTARY" ? "Complimentary" : `${Number(r.record.amount).toFixed(2)} AED`}
                 </td>
-                <td className="px-2 md:px-3 py-2.5">
+                <td className="px-3 md:px-4 py-3">
                   <Badge
                     color={
                       r.record.paymentStatus === "PAID"
@@ -775,25 +775,25 @@ export default function IncomeClient({
                     </span>
                   )}
                 </td>
-                <td className="px-2 md:px-3 py-2.5">
+                <td className="px-3 md:px-4 py-3">
                   {r.client ? (
                     <Link
                       href={`/clients/${r.client.id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                      className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                     >
                       {r.client.companyName || r.client.name || "View client"}
                     </Link>
                   ) : (
-                    <span className="text-slate-400">anonymous</span>
+                    <span className="text-gray-400">anonymous</span>
                   )}
                 </td>
-                <td className="px-2 md:px-3 py-2.5">
+                <td className="px-3 md:px-4 py-3">
                   {perms.canMarkPaid && r.record.paymentStatus === "UNPAID" && (
                     <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setPayingRecord(r); }}>Mark Paid</Button>
                   )}
                   {isDispatcher && perms.isOwner && !perms.canEdit && (
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-gray-400">
                       {perms.pendingRequest ? "Awaiting approval" : "Read-only"}
                     </span>
                   )}
@@ -802,7 +802,7 @@ export default function IncomeClient({
               );
             })}
             {filteredRecords.length === 0 && (
-              <tr><td colSpan={9} className="p-6 text-center text-slate-400">No income records match.</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-gray-400">No income records match.</td></tr>
             )}
           </tbody>
         </table>
@@ -900,22 +900,22 @@ function ClientPickerModal({
           className={inputClass}
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 -mx-1">
-          {loading && <p className="text-sm text-slate-400 px-1 py-4">Loading clients...</p>}
+        <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 -mx-1">
+          {loading && <p className="text-sm text-gray-400 px-1 py-4">Loading clients...</p>}
           {!loading && filtered.length === 0 && (
-            <p className="text-sm text-slate-400 px-1 py-4">No clients match.</p>
+            <p className="text-sm text-gray-400 px-1 py-4">No clients match.</p>
           )}
           {filtered.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => onSelect(c)}
-              className="w-full text-left px-1 py-2.5 hover:bg-indigo-50/60 rounded-lg transition-colors"
+              className="w-full text-left px-1 py-2.5 hover:bg-blue-50/60 rounded-lg transition-colors"
             >
-              <span className="block text-sm font-medium text-slate-800">
+              <span className="block text-sm font-medium text-gray-800">
                 {c.companyName || c.name || "Unnamed client"}
               </span>
-              <span className="block text-xs text-slate-400">
+              <span className="block text-xs text-gray-400">
                 {[c.name && c.companyName ? c.name : null, c.phone, c.email].filter(Boolean).join(" · ") || "No contact details saved"}
               </span>
             </button>
@@ -932,8 +932,8 @@ function ClientPickerModal({
 function DetailRow({ label, value, full }: { label: string; value: ReactNode; full?: boolean }) {
   return (
     <div className={full ? "col-span-2" : undefined}>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="text-slate-900 break-words">{value}</dd>
+      <dt className="text-xs text-gray-400">{label}</dt>
+      <dd className="text-gray-900 break-words">{value}</dd>
     </div>
   );
 }
@@ -980,7 +980,7 @@ function MarkPaidModal({
   return (
     <Modal open onClose={onClose} title="Mark as Paid" maxWidth="max-w-sm">
       <div className="space-y-4">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-gray-600">
           Recording payment for <span className="font-medium">{row.record.title}</span>
           {" — "}
           Amount Charged: {amountCharged.toFixed(2)} AED.
@@ -1005,7 +1005,7 @@ function MarkPaidModal({
           <label className="block text-xs font-medium mb-1">
             Net Amount Received (AED) <span className="text-red-500">*</span>
           </label>
-          <p className="text-xs text-slate-400 mb-1">
+          <p className="text-xs text-gray-400 mb-1">
             The actual amount that landed after processor fees/deductions.
           </p>
           <input
@@ -1249,8 +1249,8 @@ function IncomeDetailModal({
               {record.notes && <DetailRow label="Notes" value={record.notes} full />}
             </dl>
 
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Invoices</p>
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Invoices</p>
               {row.invoices?.length ? (
                 <ul className="space-y-1 mb-2">
                   {row.invoices.map((inv: any) => (
@@ -1258,16 +1258,16 @@ function IncomeDetailModal({
                       <a
                         href={`/api/files/invoice/${inv.id}`}
                         target="_blank"
-                        className="text-indigo-600 underline text-sm hover:text-indigo-800 inline-flex items-center gap-1"
+                        className="text-blue-600 underline text-sm hover:text-blue-800 inline-flex items-center gap-1"
                       >
                         <IconPaperclip className="w-3.5 h-3.5" /> {inv.fileName}
-                        <span className="text-slate-400 no-underline text-xs">(click to preview)</span>
+                        <span className="text-gray-400 no-underline text-xs">(click to preview)</span>
                       </a>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-400 mb-2">No invoice attached.</p>
+                <p className="text-sm text-gray-400 mb-2">No invoice attached.</p>
               )}
               {perms.canEdit && (
                 <div className="flex items-center gap-2">
@@ -1282,9 +1282,9 @@ function IncomeDetailModal({
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             {(perms.canEdit || perms.canDelete) && (
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
                 {perms.isOwner && !perms.canEdit && (
-                  <span className="text-xs text-slate-400 mr-auto">
+                  <span className="text-xs text-gray-400 mr-auto">
                     {perms.pendingRequest ? "Edit request awaiting admin approval" : "Edit window expired"}
                   </span>
                 )}
@@ -1345,10 +1345,10 @@ function IncomeDetailModal({
                 required
               />
             )}
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-gray-400">
               Payment status/method/date can&apos;t be changed here — payment history is permanent once recorded.
             </p>
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-gray-100 pt-4">
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat-edit" />
                 <label htmlFor="vat-edit" className="text-sm">Enable VAT (auto 5%)</label>
@@ -1359,17 +1359,17 @@ function IncomeDetailModal({
                     min="0"
                     value={vatAmount}
                     onChange={(e) => setVatAmount(e.target.value)}
-                    className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32"
+                    className="ml-2 border border-gray-300 rounded-lg px-2 py-1 text-sm w-32"
                   />
                 )}
               </div>
               {vatEnabled && record.paymentStatus !== "COMPLIMENTARY" && (
-                <p className="text-xs text-slate-500 mt-1.5">
-                  Total (after discount, incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Total (after discount, incl. VAT): <span className="font-medium text-gray-700">{totalCharged.toFixed(2)} AED</span>
                 </p>
               )}
             </div>
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-gray-100 pt-4">
               <p className="text-sm font-medium mb-2">Client details</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {CLIENT_FIELDS.map((f) => (
@@ -1390,7 +1390,7 @@ function IncomeDetailModal({
                 ))}
               </div>
             </div>
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-gray-100 pt-4">
               <label className="block text-xs font-medium mb-1">Notes</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
             </div>

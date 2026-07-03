@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, Modal } from "@/components/ui";
 
 const inputClass =
-  "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+  "w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-shadow";
 
 export type ClientFormValues = {
   name: string;
@@ -96,7 +96,7 @@ export function ClientFormModal({
             <textarea value={values.notes} onChange={(e) => set("notes", e.target.value)} className={inputClass} rows={2} />
           </div>
         </div>
-        <p className="text-xs text-slate-400">A client name or company name is required — everything else is optional.</p>
+        <p className="text-xs text-gray-400">A client name or company name is required — everything else is optional.</p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>

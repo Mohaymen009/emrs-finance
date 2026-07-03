@@ -11,7 +11,7 @@ function compact(n: number): string {
   return n.toFixed(0);
 }
 
-const INCOME_COLOR = "#6366f1"; // indigo-500
+const INCOME_COLOR = "#2563eb"; // blue-600 accent
 const EXPENSE_COLOR = "#fb7185"; // rose-400
 
 /** Grouped monthly income-vs-expenses bar chart. */
@@ -35,14 +35,14 @@ export function MonthlyTrendChart({ data }: { data: MonthlyPoint[] }) {
           const y = pad.top + plotH * (1 - g);
           return (
             <g key={g}>
-              <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="#e2e8f0" strokeWidth={1} />
-              <text x={pad.left - 6} y={y + 3.5} textAnchor="end" fontSize={10} fill="#94a3b8">
+              <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="#e5e7eb" strokeWidth={1} />
+              <text x={pad.left - 6} y={y + 3.5} textAnchor="end" fontSize={10} fill="#9ca3af">
                 {compact(max * g)}
               </text>
             </g>
           );
         })}
-        <line x1={pad.left} x2={width - pad.right} y1={pad.top + plotH} y2={pad.top + plotH} stroke="#cbd5e1" strokeWidth={1} />
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + plotH} y2={pad.top + plotH} stroke="#d1d5db" strokeWidth={1} />
 
         {data.map((d, i) => {
           const cx = pad.left + groupW * i + groupW / 2;
@@ -70,14 +70,14 @@ export function MonthlyTrendChart({ data }: { data: MonthlyPoint[] }) {
               >
                 <title>{`${d.label}: expenses ${d.expenses.toFixed(2)} AED`}</title>
               </rect>
-              <text x={cx} y={height - 8} textAnchor="middle" fontSize={10} fill="#64748b">
+              <text x={cx} y={height - 8} textAnchor="middle" fontSize={10} fill="#6b7280">
                 {d.label}
               </text>
             </g>
           );
         })}
       </svg>
-      <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
+      <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: INCOME_COLOR }} /> Income
         </span>
@@ -94,7 +94,7 @@ export type HBarItem = { label: string; value: number; hint?: string };
 /** Horizontal bar list — used for category/payment-method/aging breakdowns. */
 export function HBarList({
   items,
-  color = "#6366f1",
+  color = "#2563eb",
   emptyMessage = "No data for this period.",
 }: {
   items: HBarItem[];
@@ -102,7 +102,7 @@ export function HBarList({
   emptyMessage?: string;
 }) {
   if (items.length === 0) {
-    return <p className="text-sm text-slate-400">{emptyMessage}</p>;
+    return <p className="text-sm text-gray-400">{emptyMessage}</p>;
   }
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
@@ -110,13 +110,13 @@ export function HBarList({
       {items.map((item) => (
         <li key={item.label}>
           <div className="flex items-baseline justify-between gap-2 text-sm mb-1">
-            <span className="text-slate-700 truncate">{item.label}</span>
-            <span className="tabular-nums font-medium text-slate-800 whitespace-nowrap">
+            <span className="text-gray-700 truncate">{item.label}</span>
+            <span className="tabular-nums font-medium text-gray-800 whitespace-nowrap">
               {item.value.toFixed(2)} AED
-              {item.hint && <span className="ml-1.5 text-xs font-normal text-slate-400">{item.hint}</span>}
+              {item.hint && <span className="ml-1.5 text-xs font-normal text-gray-400">{item.hint}</span>}
             </span>
           </div>
-          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
             <div
               className="h-full rounded-full"
               style={{ width: item.value === 0 ? 0 : `${Math.max(2, (item.value / max) * 100)}%`, backgroundColor: color }}

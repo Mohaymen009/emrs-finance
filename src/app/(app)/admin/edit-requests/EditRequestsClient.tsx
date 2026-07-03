@@ -45,8 +45,8 @@ export default function EditRequestsClient({ initialRequests }: { initialRequest
 
   return (
     <div className="space-y-8">
-      <h1 className="text-lg font-semibold">Edit Access Requests</h1>
-      <p className="text-sm text-slate-500 -mt-4">
+      <h1 className="text-2xl font-semibold tracking-tight">Edit Access Requests</h1>
+      <p className="text-sm text-gray-500 -mt-4">
         Dispatchers ask here for a fresh 15-minute editing window once their original one has expired. Approving
         doesn&apos;t start the clock immediately — it starts the next time they open the record.
       </p>
@@ -54,32 +54,32 @@ export default function EditRequestsClient({ initialRequests }: { initialRequest
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
           Pending ({pending.length})
         </h2>
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <tr>
-                <th className="px-3 py-2.5">Type</th>
-                <th className="px-3 py-2.5">Ref #</th>
-                <th className="px-3 py-2.5">Record</th>
-                <th className="px-3 py-2.5">Requested By</th>
-                <th className="px-3 py-2.5">Requested At</th>
-                <th className="px-3 py-2.5"></th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Ref #</th>
+                <th className="px-4 py-3">Record</th>
+                <th className="px-4 py-3">Requested By</th>
+                <th className="px-4 py-3">Requested At</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {pending.map((r) => (
-                <tr key={r.id} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50">
-                  <td className="px-3 py-2.5">
+                <tr key={r.id} className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50">
+                  <td className="px-4 py-3">
                     <Badge color={r.recordType === "INCOME" ? "blue" : "amber"}>{r.recordType}</Badge>
                   </td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500">{r.refNumber}</td>
-                  <td className="px-3 py-2.5">{r.recordLabel}</td>
-                  <td className="px-3 py-2.5">{r.requestedByName}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{new Date(r.requestedAt).toLocaleString()}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.refNumber}</td>
+                  <td className="px-4 py-3">{r.recordLabel}</td>
+                  <td className="px-4 py-3">{r.requestedByName}</td>
+                  <td className="px-4 py-3 text-gray-500">{new Date(r.requestedAt).toLocaleString()}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <Button variant="secondary" disabled={busyId === r.id} onClick={() => act(r.id, "APPROVE")} className="mr-2">
                       Approve
                     </Button>
@@ -91,7 +91,7 @@ export default function EditRequestsClient({ initialRequests }: { initialRequest
               ))}
               {pending.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-400">
+                  <td colSpan={6} className="p-6 text-center text-gray-400">
                     No pending requests.
                   </td>
                 </tr>
@@ -102,41 +102,41 @@ export default function EditRequestsClient({ initialRequests }: { initialRequest
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Resolved (recent)</h2>
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Resolved (recent)</h2>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <tr>
-                <th className="px-3 py-2.5">Type</th>
-                <th className="px-3 py-2.5">Ref #</th>
-                <th className="px-3 py-2.5">Record</th>
-                <th className="px-3 py-2.5">Requested By</th>
-                <th className="px-3 py-2.5">Status</th>
-                <th className="px-3 py-2.5">Resolved By</th>
-                <th className="px-3 py-2.5">Resolved At</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Ref #</th>
+                <th className="px-4 py-3">Record</th>
+                <th className="px-4 py-3">Requested By</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Resolved By</th>
+                <th className="px-4 py-3">Resolved At</th>
               </tr>
             </thead>
             <tbody>
               {resolved.map((r) => (
-                <tr key={r.id} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50">
-                  <td className="px-3 py-2.5">
+                <tr key={r.id} className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50">
+                  <td className="px-4 py-3">
                     <Badge color={r.recordType === "INCOME" ? "blue" : "amber"}>{r.recordType}</Badge>
                   </td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500">{r.refNumber}</td>
-                  <td className="px-3 py-2.5">{r.recordLabel}</td>
-                  <td className="px-3 py-2.5">{r.requestedByName}</td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.refNumber}</td>
+                  <td className="px-4 py-3">{r.recordLabel}</td>
+                  <td className="px-4 py-3">{r.requestedByName}</td>
+                  <td className="px-4 py-3">
                     <Badge color={r.status === "APPROVED" ? "green" : "slate"}>{r.status}</Badge>
                   </td>
-                  <td className="px-3 py-2.5">{r.resolvedByName ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-slate-500">
+                  <td className="px-4 py-3">{r.resolvedByName ?? "—"}</td>
+                  <td className="px-4 py-3 text-gray-500">
                     {r.resolvedAt ? new Date(r.resolvedAt).toLocaleString() : "—"}
                   </td>
                 </tr>
               ))}
               {resolved.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-slate-400">
+                  <td colSpan={7} className="p-6 text-center text-gray-400">
                     No resolved requests yet.
                   </td>
                 </tr>
