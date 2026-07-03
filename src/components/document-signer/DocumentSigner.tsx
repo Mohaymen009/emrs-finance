@@ -277,9 +277,13 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    // Fixed to the viewport height on desktop (matching the invoice tool's
+    // own workspace) so the page itself never scrolls — the tool sidebar
+    // and the PDF canvas each get their own single scroll context instead
+    // of a page scroll fighting the canvas's internal one.
+    <div className="flex flex-col lg:h-[calc(100vh-3.5rem)] bg-background">
       {/* Header */}
-      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
+      <header className="border-b bg-card shrink-0">
         <div className="container py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -320,10 +324,10 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
         onChange={handleFileUpload}
       />
 
-      <main className="container py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <main className="flex-1 lg:min-h-0 flex flex-col container py-6">
+        <div className="flex-1 lg:min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Sidebar - Tools */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-1 lg:min-h-0 lg:overflow-y-auto scrollbar-thin lg:pr-1 space-y-4">
             {/* Upload PDF Card */}
             {!pdfFile && (
               <Card>
@@ -401,8 +405,8 @@ export const DocumentSigner = ({ onBack }: DocumentSignerProps) => {
           </div>
 
           {/* Main Content - PDF Viewer */}
-          <div className="lg:col-span-3">
-            <Card className="h-[calc(100vh-180px)] overflow-hidden">
+          <div className="lg:col-span-3 lg:min-h-0">
+            <Card className="h-[70vh] lg:h-full overflow-hidden">
               <PDFViewer
                 file={pdfFile}
                 elements={elements}

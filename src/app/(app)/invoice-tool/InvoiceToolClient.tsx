@@ -171,32 +171,57 @@ const DOC_TABS: { id: DocType; label: string; shortLabel: string; icon: React.Co
   { id: "statement", label: "Statement", shortLabel: "SOA", icon: ClipboardList },
 ];
 
-// The A4 templates render at a fixed 210mm (~794px). The preview panes are
-// narrower than that, so this frame measures its own width and zooms the
-// document to fit — `zoom` scales layout too, unlike `transform`, which used
-// to leave a page-sized block of dead scroll space under the preview.
-function DocumentPreview({ children }: { children: React.ReactNode }) {
-  const frameRef = useRef<HTMLDivElement>(null);
+const A4_WIDTH_PX = 794; // 210mm at 96dpi — the templates' fixed render width.
+
+// The A4 templates render at a fixed width. The preview panes are narrower,
+// so we zoom the document to fit — `zoom` scales layout too, unlike
+// `transform`, which left a page-sized block of dead scroll space under the
+// preview.
+//
+// The width used to fit `containerRef` is measured on a STABLE ancestor —
+// the pane's outer wrapper — rather than the scrollable pane itself. The
+// scrollable pane's own width shrinks by the scrollbar's width whenever a
+// vertical scrollbar appears, which happens exactly when zooming out makes
+// the (now shorter) document fit — so measuring it fed the scrollbar's
+// appearance back into the zoom calculation and the two fought forever.
+// This was most visible on the Statement of Account, whose optional second
+// page sits right at that height threshold. Reserving fixed space for
+// padding/scrollbar instead of measuring it keeps the fit stable.
+function useFitZoom(containerRef: React.RefObject<HTMLElement | null>, reserve: number) {
   const [zoom, setZoom] = useState(0.6);
 
   useEffect(() => {
-    const el = frameRef.current;
+    const el = containerRef.current;
     if (!el) return;
+    let frame = 0;
     const fit = () => {
-      const width = el.clientWidth;
-      if (width > 0) setZoom(Math.min(1, width / 800));
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const width = el.clientWidth - reserve;
+        if (width <= 0) return;
+        // Round to whole percent: keeps borders/hairlines on whole pixels
+        // instead of drifting sub-pixel and looking soft, and avoids
+        // re-render loops from float noise between measurements.
+        const next = Math.min(1, Math.round((width / A4_WIDTH_PX) * 100) / 100);
+        setZoom((prev) => (prev === next ? prev : next));
+      });
     };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [containerRef, reserve]);
 
+  return zoom;
+}
+
+function DocumentPreview({ zoom, children }: { zoom: number; children: React.ReactNode }) {
   return (
-    <div ref={frameRef}>
-      <div className="w-fit mx-auto bg-white ring-1 ring-gray-200 shadow-pop" style={{ zoom }}>
-        {children}
-      </div>
+    <div className="w-fit mx-auto bg-white ring-1 ring-gray-200 shadow-pop" style={{ zoom }}>
+      {children}
     </div>
   );
 }
@@ -213,6 +238,13 @@ export default function InvoiceToolClient() {
   const quotationRef = useRef<HTMLDivElement>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
   const statementRef = useRef<HTMLDivElement>(null);
+  const desktopPreviewPaneRef = useRef<HTMLDivElement>(null);
+  const mobilePreviewPaneRef = useRef<HTMLDivElement>(null);
+  // Reserve space for the pane's own padding plus its scrollbar (desktop
+  // pane scrolls internally; mobile doesn't) — see useFitZoom for why this
+  // has to be a fixed reserve rather than measured live.
+  const desktopZoom = useFitZoom(desktopPreviewPaneRef, 48);
+  const mobileZoom = useFitZoom(mobilePreviewPaneRef, 24);
 
   const handleDownload = async () => {
     if (!invoiceRef.current) return;
@@ -457,7 +489,7 @@ export default function InvoiceToolClient() {
               <button
                 key={tab.id}
                 onClick={() => setDocTab(tab.id)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                   active ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
@@ -472,7 +504,7 @@ export default function InvoiceToolClient() {
         <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-card">
           <button
             onClick={() => setView("editor")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
               view === "editor" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
             }`}
           >
@@ -481,7 +513,7 @@ export default function InvoiceToolClient() {
           </button>
           <button
             onClick={() => setView("history")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
               view === "history" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
             }`}
           >
@@ -512,23 +544,23 @@ export default function InvoiceToolClient() {
             </div>
           </section>
 
-          <section className="hidden lg:flex flex-col min-h-0">
+          <section ref={desktopPreviewPaneRef} className="hidden lg:flex flex-col min-h-0">
             <div className="shrink-0 pb-3">
               <h2 className="text-sm font-semibold text-gray-900">Live preview</h2>
               <p className="text-xs text-gray-500">Exactly what the downloaded PDF will look like.</p>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin rounded-2xl border border-gray-200 bg-gray-100/80 p-5">
-              <DocumentPreview>{renderTemplate()}</DocumentPreview>
+              <DocumentPreview zoom={desktopZoom}>{renderTemplate()}</DocumentPreview>
             </div>
           </section>
 
-          <section id="mobile-preview" className="lg:hidden">
+          <section id="mobile-preview" ref={mobilePreviewPaneRef} className="lg:hidden">
             <div className="pb-3">
               <h2 className="text-sm font-semibold text-gray-900 capitalize">{docName} preview</h2>
               <p className="text-xs text-gray-500">This is how your {docName} will look.</p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-gray-100/80 p-3">
-              <DocumentPreview>{renderTemplate()}</DocumentPreview>
+              <DocumentPreview zoom={mobileZoom}>{renderTemplate()}</DocumentPreview>
             </div>
           </section>
         </div>
