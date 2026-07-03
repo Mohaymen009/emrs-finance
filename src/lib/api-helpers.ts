@@ -14,8 +14,18 @@ export function handleApiError(err: unknown): NextResponse {
     return NextResponse.json({ error: err.message }, { status });
   }
   if (err instanceof ZodError) {
+    // "Validation failed" alone doesn't say which field or why — every
+    // client-side error display just shows `error` directly (see e.g.
+    // UsersClient.tsx), so fold the first couple of field-specific messages
+    // into it rather than burying them in `details` where nothing reads them.
+    const flat = err.flatten();
+    const fieldErrors = flat.fieldErrors as Record<string, string[] | undefined>;
+    const fieldMessages = Object.entries(fieldErrors)
+      .filter((entry): entry is [string, string[]] => !!entry[1] && entry[1].length > 0)
+      .map(([field, msgs]) => `${field}: ${msgs[0]}`);
+    const summary = [...flat.formErrors, ...fieldMessages].slice(0, 3).join("; ");
     return NextResponse.json(
-      { error: "Validation failed", details: err.flatten() },
+      { error: summary ? `Validation failed — ${summary}` : "Validation failed", details: flat },
       { status: 400 }
     );
   }
