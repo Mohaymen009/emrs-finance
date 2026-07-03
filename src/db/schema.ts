@@ -56,6 +56,7 @@ export const auditActionEnum = pgEnum("audit_action", [
   "DIVISION_ACCESS_CHANGED",
   "CLIENT_CREATED",
   "CLIENT_UPDATED",
+  "CLIENT_DELETED",
 ]);
 export const exportTypeEnum = pgEnum("export_type", [
   "INCOME",

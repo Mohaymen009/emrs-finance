@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Badge, IconEdit } from "@/components/ui";
+import { Button, Badge, ConfirmDialog, IconEdit } from "@/components/ui";
 import { formatRefNumber } from "@/lib/refnumber";
 import { ClientFormModal, type ClientFormValues } from "../ClientFormModal";
 
@@ -68,6 +68,9 @@ export default function ClientDetailClient({
   const router = useRouter();
   const client = initialClient;
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const stats = useMemo(() => {
     let billed = 0;
@@ -99,6 +102,24 @@ export default function ClientDetailClient({
     return null;
   }
 
+  async function confirmDeleteClient() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setConfirmDelete(false);
+        setDeleteError(data.error ?? "Failed to delete client");
+        return;
+      }
+      router.push("/clients");
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -110,13 +131,20 @@ export default function ClientDetailClient({
           {client.companyName && client.name && <p className="text-sm text-slate-500">{client.name}</p>}
         </div>
         {canEdit && (
-          <Button variant="secondary" onClick={() => setEditing(true)}>
-            <span className="inline-flex items-center gap-1">
-              <IconEdit className="w-3.5 h-3.5" /> Edit Client
-            </span>
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="dangerGhost" onClick={() => setConfirmDelete(true)}>
+              Delete
+            </Button>
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              <span className="inline-flex items-center gap-1">
+                <IconEdit className="w-3.5 h-3.5" /> Edit Client
+              </span>
+            </Button>
+          </div>
         )}
       </div>
+
+      {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Total Billed" value={`${stats.billed.toFixed(2)} AED`} />
@@ -226,6 +254,17 @@ export default function ClientDetailClient({
           onClose={() => setEditing(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete client"
+        message={`Permanently delete "${displayName}"? This only works if they have no income records attached.${
+          deleting ? "" : " This cannot be undone."
+        }`}
+        confirmLabel={deleting ? "Deleting..." : "Delete"}
+        onConfirm={confirmDeleteClient}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }
