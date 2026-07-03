@@ -4,16 +4,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { ReceiptData, LineItem } from "@/types/invoice";
 
 interface ReceiptFormProps {
   formData: ReceiptData;
   onChange: (data: ReceiptData) => void;
-  onDownload: () => void;
 }
 
-export function ReceiptForm({ formData, onChange, onDownload }: ReceiptFormProps) {
+export function ReceiptForm({ formData, onChange }: ReceiptFormProps) {
   const parseAED = (value: string): number => {
     if (!value) return 0;
     const cleaned = value.replace(/[^0-9.]/g, "");
@@ -498,12 +497,6 @@ export function ReceiptForm({ formData, onChange, onDownload }: ReceiptFormProps
           </div>
         </CardContent>
       </Card>
-
-      {/* Download Button */}
-      <Button onClick={onDownload} className="w-full gap-2" size="lg">
-        <FileText className="h-5 w-5" />
-        Generate Receipt PDF
-      </Button>
     </div>
   );
 }

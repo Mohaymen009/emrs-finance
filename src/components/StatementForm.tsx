@@ -11,10 +11,9 @@ import { StatementData, TransactionItem, BankDetails, ContactDetails } from "@/t
 interface StatementFormProps {
   formData: StatementData;
   onChange: (data: StatementData) => void;
-  onDownload: () => void;
 }
 
-export function StatementForm({ formData, onChange, onDownload }: StatementFormProps) {
+export function StatementForm({ formData, onChange }: StatementFormProps) {
   const handleInputChange = (field: keyof StatementData, value: string | boolean) => {
     onChange({ ...formData, [field]: value });
   };

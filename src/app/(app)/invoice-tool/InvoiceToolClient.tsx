@@ -17,16 +17,20 @@ import { StatementHistory } from "@/components/StatementHistory";
 import { InvoiceData, SavedInvoice, QuotationData, SavedQuotation, ReceiptData, SavedReceipt, StatementData, SavedStatement } from "@/types/invoice";
 import { saveInvoice, saveQuotation, saveReceipt, saveStatement } from "@/utils/storage";
 import { EMRS_COMPANY_DEFAULTS } from "@/utils/companyDefaults";
-import { FileText, Download, History, Eye, Receipt, PenLine, ClipboardList, PencilRuler } from "lucide-react";
+import { FileText, Download, History, Eye, Receipt, PenLine, ClipboardList, PencilRuler, FileMinus2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
 import { toast } from "@/hooks/use-toast";
 
 // pdf-lib/react-pdf touch canvas/DOM APIs that aren't safe during Next's
 // server render pass, even inside a "use client" component — load the whole
-// signer client-side only.
+// signer and page editor client-side only.
 const DocumentSigner = dynamic(
   () => import("@/components/document-signer").then((m) => m.DocumentSigner),
+  { ssr: false }
+);
+const PdfPageEditor = dynamic(
+  () => import("@/components/PdfPageEditor").then((m) => m.PdfPageEditor),
   { ssr: false }
 );
 
@@ -234,6 +238,7 @@ export default function InvoiceToolClient() {
   const [docTab, setDocTab] = useState<DocType>("invoice");
   const [view, setView] = useState<"editor" | "history">("editor");
   const [showDocumentSigner, setShowDocumentSigner] = useState(false);
+  const [showPageEditor, setShowPageEditor] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
   const quotationRef = useRef<HTMLDivElement>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -406,13 +411,13 @@ export default function InvoiceToolClient() {
   const renderForm = () => {
     switch (docTab) {
       case "quotation":
-        return <QuotationForm formData={quotationData} onChange={setQuotationData} onDownload={handleQuotationDownload} />;
+        return <QuotationForm formData={quotationData} onChange={setQuotationData} />;
       case "receipt":
-        return <ReceiptForm formData={receiptData} onChange={setReceiptData} onDownload={handleReceiptDownload} />;
+        return <ReceiptForm formData={receiptData} onChange={setReceiptData} />;
       case "statement":
-        return <StatementForm formData={statementData} onChange={setStatementData} onDownload={handleStatementDownload} />;
+        return <StatementForm formData={statementData} onChange={setStatementData} />;
       default:
-        return <InvoiceForm formData={formData} onChange={setFormData} onDownload={handleDownload} />;
+        return <InvoiceForm formData={formData} onChange={setFormData} />;
     }
   };
 
@@ -451,6 +456,15 @@ export default function InvoiceToolClient() {
     );
   }
 
+  if (showPageEditor) {
+    return (
+      <>
+        <PdfPageEditor onBack={() => setShowPageEditor(false)} />
+        <Toaster />
+      </>
+    );
+  }
+
   const docName = docTab;
 
   return (
@@ -471,6 +485,11 @@ export default function InvoiceToolClient() {
             <PenLine className="h-4 w-4" />
             <span className="hidden sm:inline">Sign &amp; Stamp</span>
             <span className="sm:hidden">Sign</span>
+          </Button>
+          <Button variant="outline" onClick={() => setShowPageEditor(true)} className="gap-2">
+            <FileMinus2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Remove Pages</span>
+            <span className="sm:hidden">Pages</span>
           </Button>
           <Button onClick={() => getActiveDownloadHandler()()} className="gap-2 flex-1 sm:flex-initial">
             <Download className="h-4 w-4" />

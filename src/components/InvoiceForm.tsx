@@ -6,16 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { InvoiceData, LineItem } from "@/types/invoice";
 
 interface InvoiceFormProps {
   formData: InvoiceData;
   onChange: (data: InvoiceData) => void;
-  onDownload: () => void;
 }
 
-export function InvoiceForm({ formData, onChange, onDownload }: InvoiceFormProps) {
+export function InvoiceForm({ formData, onChange }: InvoiceFormProps) {
   const parseAED = (value: string): number => {
     if (!value) return 0;
     const cleaned = value.replace(/[^0-9.]/g, "");
@@ -676,15 +675,6 @@ export function InvoiceForm({ formData, onChange, onDownload }: InvoiceFormProps
           </div>
         </CardContent>
       </Card>
-
-      <Separator />
-
-      <div className="flex justify-end">
-        <Button type="button" size="lg" className="gap-2" onClick={onDownload}>
-          <FileText className="h-5 w-5" />
-          Download PDF Invoice
-        </Button>
-      </div>
     </div>
   );
 }

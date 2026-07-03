@@ -3,7 +3,12 @@ import * as React from "react";
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+// How long a toast stays on screen before dismissing itself — nobody should
+// have to close a "PDF downloaded" notification by hand.
+const TOAST_AUTO_DISMISS_DELAY = 4000;
+// Grace period between the closing animation starting and the toast being
+// removed from state entirely.
+const TOAST_REMOVE_DELAY = 1000;
 
 type ToasterToast = ToastProps & {
   id: string;
@@ -155,6 +160,8 @@ function toast({ ...props }: Toast) {
       },
     },
   });
+
+  setTimeout(dismiss, TOAST_AUTO_DISMISS_DELAY);
 
   return {
     id: id,
