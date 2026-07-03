@@ -92,16 +92,39 @@ function buildHaystack(r: any): string {
     .toLowerCase();
 }
 
+type Role = "ADMIN" | "VIEWER" | "DISPATCHER";
+
+/** Row-level Edit/Delete permissions for the current user. */
+function rowPermissions(
+  r: any,
+  currentUserId: string,
+  currentUserRole: Role
+): { canEdit: boolean; canDelete: boolean; isOwner: boolean; pendingRequest: boolean } {
+  const isOwner = r.record.createdById === currentUserId;
+  if (currentUserRole === "ADMIN") {
+    return { canEdit: true, canDelete: true, isOwner: true, pendingRequest: false };
+  }
+  if (currentUserRole === "DISPATCHER") {
+    const editable = isOwner && !!r.editWindow?.editable;
+    return { canEdit: editable, canDelete: isOwner, isOwner, pendingRequest: isOwner && !!r.editWindow?.pendingRequest };
+  }
+  return { canEdit: false, canDelete: false, isOwner: false, pendingRequest: false };
+}
+
 export default function ExpenseClient({
   initialRecords,
   divisions,
-  canEdit,
+  currentUserId,
+  currentUserRole,
 }: {
   initialRecords: any[];
   divisions: Division[];
-  canEdit: boolean;
+  currentUserId: string;
+  currentUserRole: Role;
 }) {
   const router = useRouter();
+  const canCreate = currentUserRole !== "VIEWER";
+  const isDispatcher = currentUserRole === "DISPATCHER";
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -112,6 +135,7 @@ export default function ExpenseClient({
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState("");
   const [amount, setAmount] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [vatEnabled, setVatEnabled] = useState(false);
@@ -185,6 +209,7 @@ export default function ExpenseClient({
       form.set("description", description);
       form.set("category", category === "OTHER" ? customCategory : category);
       form.set("date", date);
+      if (paymentDate) form.set("paymentDate", paymentDate);
       form.set("amount", amount);
       form.set("supplierName", supplierName);
       form.set("vatEnabled", String(vatEnabled));
@@ -203,6 +228,7 @@ export default function ExpenseClient({
       setDescription("");
       setCategory("");
       setCustomCategory("");
+      setPaymentDate("");
       setAmount("");
       setVatEnabled(false);
       setVatAmount("");
@@ -218,10 +244,12 @@ export default function ExpenseClient({
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Expenses</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
-            Export to Excel
-          </Button>
-          {canEdit && (
+          {!isDispatcher && (
+            <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
+              Export to Excel
+            </Button>
+          )}
+          {canCreate && (
             <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cancel" : "+ New Expense"}
             </Button>
@@ -247,9 +275,18 @@ export default function ExpenseClient({
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">
-                Expense Date <span className="text-red-500">*</span>
+                Purchase / Service Date <span className="text-red-500">*</span>
               </label>
+              <p className="text-xs text-slate-400 mb-1">When we bought the item or received the service.</p>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium mb-1">Payment Date (optional)</label>
+              <p className="text-xs text-slate-400 mb-1">When we actually paid — leave empty if not paid yet.</p>
+              <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </div>
           </div>
 
@@ -319,6 +356,13 @@ export default function ExpenseClient({
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
           </div>
 
+          {isDispatcher && (
+            <p className="text-xs text-amber-600">
+              You&apos;ll have 15 minutes after saving to edit this record. The timer runs in the background even if
+              you close the app — after it expires you&apos;ll need to request edit access from an admin.
+            </p>
+          )}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button type="submit" disabled={submitting}>
@@ -359,7 +403,8 @@ export default function ExpenseClient({
           {filteredRecords.length} record{filteredRecords.length === 1 ? "" : "s"}
           {dateRange.dateFrom && <> &middot; {dateRange.label}</>}
         </span>
-        <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
+        {/* Dispatchers see only their own records, listed — no totals/sums. */}
+        {!isDispatcher && <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
@@ -370,14 +415,17 @@ export default function ExpenseClient({
               <th className="px-2 md:px-3 py-2.5">Department</th>
               <th className="px-2 md:px-3 py-2.5">Description</th>
               <th className="px-2 md:px-3 py-2.5">Category</th>
-              <th className="px-2 md:px-3 py-2.5">Date</th>
+              <th className="px-2 md:px-3 py-2.5">Purchase Date</th>
+              <th className="px-2 md:px-3 py-2.5">Paid On</th>
               <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
               <th className="px-2 md:px-3 py-2.5">Supplier</th>
               <th className="px-2 md:px-3 py-2.5">Receipt</th>
             </tr>
           </thead>
           <tbody>
-            {filteredRecords.map((r) => (
+            {filteredRecords.map((r) => {
+              const perms = rowPermissions(r, currentUserId, currentUserRole);
+              return (
               <tr
                 key={r.record.id}
                 onClick={() => setSelected(r)}
@@ -388,6 +436,9 @@ export default function ExpenseClient({
                 <td className="px-2 md:px-3 py-2.5">{r.record.description}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.category ?? "—"}</td>
                 <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                  {r.record.paymentDate ? new Date(r.record.paymentDate).toLocaleDateString() : "—"}
+                </td>
                 <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{Number(r.record.amount).toFixed(2)} AED</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.supplierName ?? "—"}</td>
                 <td className="px-2 md:px-3 py-2.5">
@@ -396,11 +447,17 @@ export default function ExpenseClient({
                   ) : (
                     <span className="text-slate-400 text-xs">none</span>
                   )}
+                  {isDispatcher && perms.isOwner && !perms.canEdit && (
+                    <span className="block text-[11px] text-slate-400">
+                      {perms.pendingRequest ? "Awaiting approval" : "Read-only"}
+                    </span>
+                  )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {filteredRecords.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-slate-400">No expense records match.</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-slate-400">No expense records match.</td></tr>
             )}
           </tbody>
         </table>
@@ -410,7 +467,7 @@ export default function ExpenseClient({
         <ExpenseDetailModal
           row={selected}
           divisions={divisions}
-          canEdit={canEdit}
+          perms={rowPermissions(selected, currentUserId, currentUserRole)}
           onClose={() => setSelected(null)}
           onChanged={() => {
             router.refresh();
@@ -436,13 +493,13 @@ function DetailRow({ label, value, full }: { label: string; value: ReactNode; fu
 function ExpenseDetailModal({
   row,
   divisions,
-  canEdit,
+  perms,
   onClose,
   onChanged,
 }: {
   row: any;
   divisions: Division[];
-  canEdit: boolean;
+  perms: { canEdit: boolean; canDelete: boolean; isOwner: boolean; pendingRequest: boolean };
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -451,7 +508,23 @@ function ExpenseDetailModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [requestingAccess, setRequestingAccess] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function requestEditAccess() {
+    setRequestingAccess(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/expense/${record.id}/edit-request`, { method: "POST" });
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to request edit access");
+        return;
+      }
+      onChanged();
+    } finally {
+      setRequestingAccess(false);
+    }
+  }
 
   const [divisionCode, setDivisionCode] = useState(row.divisionCode);
   const [description, setDescription] = useState(record.description);
@@ -459,6 +532,9 @@ function ExpenseDetailModal({
   const [category, setCategory] = useState(isPreset ? record.category : record.category ? "OTHER" : "");
   const [customCategory, setCustomCategory] = useState(isPreset ? "" : record.category ?? "");
   const [date, setDate] = useState(new Date(record.date).toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(
+    record.paymentDate ? new Date(record.paymentDate).toISOString().slice(0, 10) : ""
+  );
   const [amount, setAmount] = useState(String(record.amount));
   const [supplierName, setSupplierName] = useState(record.supplierName ?? "");
   const [vatEnabled, setVatEnabled] = useState(record.vatEnabled);
@@ -488,6 +564,7 @@ function ExpenseDetailModal({
           description,
           category: category === "OTHER" ? customCategory : category,
           date,
+          paymentDate: paymentDate || null,
           amount: Number(amount || 0),
           supplierName: supplierName || undefined,
           vatEnabled,
@@ -542,7 +619,11 @@ function ExpenseDetailModal({
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <DetailRow label="Reference #" value={formatRefNumber(record.refYear, record.refSeq)} />
               <DetailRow label="Department" value={row.divisionName} />
-              <DetailRow label="Date" value={new Date(record.date).toLocaleDateString()} />
+              <DetailRow label="Purchase / Service Date" value={new Date(record.date).toLocaleDateString()} />
+              <DetailRow
+                label="Payment Date"
+                value={record.paymentDate ? new Date(record.paymentDate).toLocaleDateString() : "Not paid yet"}
+              />
               <DetailRow label="Description" value={record.description} full />
               {record.category && <DetailRow label="Category" value={record.category} />}
               <DetailRow label={record.vatEnabled ? "Net Amount" : "Amount"} value={`${Number(record.amount).toFixed(2)} AED`} />
@@ -577,7 +658,7 @@ function ExpenseDetailModal({
               ) : (
                 <p className="text-sm text-slate-400 mb-2">No receipt attached.</p>
               )}
-              {canEdit && (
+              {perms.canEdit && (
                 <div className="flex items-center gap-2">
                   <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={`${fileInputClass} flex-1`} />
                   <Button variant="secondary" type="button" onClick={attachReceipt} disabled={submitting}>
@@ -589,14 +670,30 @@ function ExpenseDetailModal({
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            {canEdit && (
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                <Button variant="dangerGhost" onClick={() => setConfirmDelete(true)}>Delete</Button>
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  <span className="inline-flex items-center gap-1">
-                    <IconEdit className="w-3.5 h-3.5" /> Edit
+            {(perms.canEdit || perms.canDelete) && (
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                {perms.isOwner && !perms.canEdit && (
+                  <span className="text-xs text-slate-400 mr-auto">
+                    {perms.pendingRequest ? "Edit request awaiting admin approval" : "Edit window expired"}
                   </span>
-                </Button>
+                )}
+                {perms.canDelete && (
+                  <Button variant="dangerGhost" onClick={() => setConfirmDelete(true)}>Delete</Button>
+                )}
+                {perms.canEdit ? (
+                  <Button variant="secondary" onClick={() => setEditing(true)}>
+                    <span className="inline-flex items-center gap-1">
+                      <IconEdit className="w-3.5 h-3.5" /> Edit
+                    </span>
+                  </Button>
+                ) : (
+                  perms.isOwner &&
+                  !perms.pendingRequest && (
+                    <Button variant="secondary" onClick={requestEditAccess} disabled={requestingAccess}>
+                      {requestingAccess ? "Requesting..." : "Request Edit Access"}
+                    </Button>
+                  )
+                )}
               </div>
             )}
           </div>
@@ -612,8 +709,14 @@ function ExpenseDetailModal({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Expense Date</label>
+                <label className="block text-xs font-medium mb-1">Purchase / Service Date</label>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1">Payment Date (optional)</label>
+                <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

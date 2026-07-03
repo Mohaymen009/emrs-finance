@@ -6,21 +6,28 @@ import { usePathname, useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
 import { IconMenu, IconX } from "@/components/ui";
 
-export default function Nav({ user }: { user: SessionUser }) {
+export default function Nav({ user, pendingEditRequests = 0 }: { user: SessionUser; pendingEditRequests?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const links = [
-    { href: "/dashboard", label: "Dashboard" },
+    // Dispatchers get no visibility into company-wide financial reporting.
+    ...(user.role !== "DISPATCHER" ? [{ href: "/dashboard", label: "Dashboard" }] : []),
     { href: "/income", label: "Income" },
     { href: "/expenses", label: "Expenses" },
     { href: "/clients", label: "Clients" },
+    ...(user.role === "ADMIN" || user.role === "DISPATCHER"
+      ? [{ href: "/invoice-tool", label: "Invoice Tool" }]
+      : []),
     ...(user.role === "ADMIN"
       ? [
-          { href: "/invoice-tool", label: "Invoice Tool" },
           { href: "/admin/users", label: "Users" },
           { href: "/admin/logs", label: "System Logs" },
+          {
+            href: "/admin/edit-requests",
+            label: pendingEditRequests > 0 ? `Edit Requests (${pendingEditRequests})` : "Edit Requests",
+          },
         ]
       : []),
   ];

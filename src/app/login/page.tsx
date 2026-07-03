@@ -25,7 +25,9 @@ export default function LoginPage() {
         setError(data.error ?? "Login failed");
         return;
       }
-      router.push("/dashboard");
+      // Dispatchers have no dashboard access — send them straight to Income
+      // instead of bouncing through the redirect there.
+      router.push(data.user?.role === "DISPATCHER" ? "/income" : "/dashboard");
       router.refresh();
     } finally {
       setLoading(false);

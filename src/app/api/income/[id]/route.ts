@@ -6,7 +6,9 @@ import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { findOrCreateClient } from "@/lib/clients";
 import { writeAuditLog } from "@/lib/audit";
 import { updateIncomeSchema } from "@/lib/validation";
-import { handleApiError } from "@/lib/api-helpers";
+import { handleApiError, applyDiscount } from "@/lib/api-helpers";
+import { nextRefNumber } from "@/lib/refseq";
+import { getEditWindowForRecord } from "@/lib/editWindow";
 
 async function loadRecordWithDivision(id: string) {
   const [row] = await db
@@ -26,6 +28,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!row || row.record.deletedAt) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    // Dispatchers never see another dispatcher's record — 404, not 403, so
+    // its existence isn't revealed.
+    if (user.role === "DISPATCHER" && row.record.createdById !== user.id) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     assertDivisionAccess(user, row.divisionCode);
     return NextResponse.json({ record: row.record });
   } catch (err) {
@@ -41,13 +48,29 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot edit records" }, { status: 403 });
     }
     const { id } = await params;
     const row = await loadRecordWithDivision(id);
     if (!row || row.record.deletedAt) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (user.role === "DISPATCHER") {
+      if (row.record.createdById !== user.id) {
+        return NextResponse.json({ error: "You can only edit your own records." }, { status: 403 });
+      }
+      const window = await getEditWindowForRecord("INCOME", id, row.record.createdAt);
+      if (!window.editable) {
+        return NextResponse.json(
+          {
+            error: window.pendingRequest
+              ? "This record's edit window has expired. Your request for more time is awaiting admin approval."
+              : "This record's edit window has expired. Request edit access from an admin to make further changes.",
+          },
+          { status: 403 }
+        );
+      }
     }
     assertDivisionAccess(user, row.divisionCode);
 
@@ -74,8 +97,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (input.title !== undefined) updates.title = input.title;
-    if (input.date !== undefined) updates.date = input.date;
-    if (input.amount !== undefined) updates.amount = input.amount.toFixed(2);
+    if (input.date !== undefined) {
+      updates.date = input.date;
+      // Reference numbers are sequential within the service date's year — if
+      // the edit moves the record to a different year, renumber it there.
+      if (input.date.getFullYear() !== row.record.refYear) {
+        const { refYear, refSeq } = await nextRefNumber(incomeRecords, input.date);
+        updates.refYear = refYear;
+        updates.refSeq = refSeq;
+      }
+    }
+    if (input.amount !== undefined) {
+      // amount arrives as the gross figure; store net + discount breakdown
+      // (see POST /api/income). Complimentary records stay zeroed with no
+      // discount fields.
+      if (row.record.paymentStatus === "COMPLIMENTARY") {
+        updates.amount = "0.00";
+        updates.discountType = null;
+        updates.discountValue = null;
+        updates.discountAmount = null;
+      } else {
+        const { netAmount, discountAmount } = applyDiscount({
+          grossAmount: input.amount,
+          discountType: input.discountType,
+          discountValue: input.discountValue,
+        });
+        updates.amount = netAmount.toFixed(2);
+        updates.discountType = input.discountType ?? null;
+        updates.discountValue = input.discountType ? (input.discountValue ?? 0).toFixed(2) : null;
+        updates.discountAmount = discountAmount === null ? null : discountAmount.toFixed(2);
+      }
+    }
     if (input.vatEnabled !== undefined) updates.vatEnabled = input.vatEnabled;
     if (input.vatAmount !== undefined) updates.vatAmount = String(input.vatAmount);
     if (input.vatEnabled === false) updates.vatAmount = null;
@@ -107,13 +159,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot delete records" }, { status: 403 });
     }
     const { id } = await params;
     const row = await loadRecordWithDivision(id);
     if (!row || row.record.deletedAt) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    // Dispatchers can delete their own records anytime — no edit-window or
+    // admin-approval gate on deletion, unlike editing.
+    if (user.role === "DISPATCHER" && row.record.createdById !== user.id) {
+      return NextResponse.json({ error: "You can only delete your own records." }, { status: 403 });
     }
     assertDivisionAccess(user, row.divisionCode);
 

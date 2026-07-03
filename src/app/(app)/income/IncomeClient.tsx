@@ -26,12 +26,97 @@ const inputClass =
 
 const VAT_RATE = 0.05;
 
-// 5% of the entered net amount, as a fixed 2dp string — the starting point
-// for the VAT field, which stays editable in case an invoice needs a
-// different figure.
-function autoVat(amount: string): string {
-  const n = Number(amount);
-  return amount && !Number.isNaN(n) ? (n * VAT_RATE).toFixed(2) : "";
+// 5% of the net (after-discount) amount, as a fixed 2dp string — the
+// starting point for the VAT field, which stays editable in case an invoice
+// needs a different figure.
+function autoVat(net: number): string {
+  return net > 0 && !Number.isNaN(net) ? (net * VAT_RATE).toFixed(2) : "";
+}
+
+// Mirrors applyDiscount in src/lib/api-helpers.ts: gross - discount = net,
+// with the deducted AED value capped at the gross.
+function computeDiscount(amount: string, type: string, value: string): { discountAmount: number; net: number } {
+  const gross = Number(amount || 0);
+  if (!type || !value || gross <= 0 || Number.isNaN(gross)) {
+    return { discountAmount: 0, net: Number.isNaN(gross) ? 0 : gross };
+  }
+  const v = Number(value || 0);
+  const raw = type === "PERCENT" ? (gross * v) / 100 : v;
+  const discountAmount = Math.min(Number(raw.toFixed(2)), gross);
+  return { discountAmount, net: Number((gross - discountAmount).toFixed(2)) };
+}
+
+/** Amount + optional discount + VAT block shared by the create and edit forms. */
+function AmountWithDiscountFields({
+  amount,
+  discountType,
+  discountValue,
+  onAmountChange,
+  onDiscountTypeChange,
+  onDiscountValueChange,
+  required,
+}: {
+  amount: string;
+  discountType: string;
+  discountValue: string;
+  onAmountChange: (v: string) => void;
+  onDiscountTypeChange: (v: string) => void;
+  onDiscountValueChange: (v: string) => void;
+  required?: boolean;
+}) {
+  const { discountAmount, net } = computeDiscount(amount, discountType, discountValue);
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs font-medium mb-1">
+            Amount Charged (AED) {required && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={amount}
+            onChange={(e) => onAmountChange(e.target.value)}
+            required={required}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">Discount</label>
+          <select value={discountType} onChange={(e) => onDiscountTypeChange(e.target.value)} className={inputClass}>
+            <option value="">No discount</option>
+            <option value="FIXED">Fixed amount (AED)</option>
+            <option value="PERCENT">Percentage (%)</option>
+          </select>
+        </div>
+        {discountType && (
+          <div className="animate-fade-slide-in">
+            <label className="block text-xs font-medium mb-1">
+              {discountType === "PERCENT" ? "Discount (%)" : "Discount (AED)"} <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max={discountType === "PERCENT" ? 100 : undefined}
+              value={discountValue}
+              onChange={(e) => onDiscountValueChange(e.target.value)}
+              required
+              className={inputClass}
+            />
+          </div>
+        )}
+      </div>
+      {discountType && discountAmount > 0 && (
+        <p className="text-xs text-slate-500">
+          Discount: <span className="font-medium text-slate-700">−{discountAmount.toFixed(2)} AED</span>
+          <span className="mx-2 text-slate-300">|</span>
+          Net after discount: <span className="font-medium text-slate-700">{net.toFixed(2)} AED</span>
+        </p>
+      )}
+    </div>
+  );
 }
 
 type ClientMatch = {
@@ -114,16 +199,45 @@ function buildHaystack(r: any): string {
     .toLowerCase();
 }
 
+type Role = "ADMIN" | "VIEWER" | "DISPATCHER";
+
+/** Row-level Edit/Delete/Mark-Paid permissions for the current user. */
+function rowPermissions(
+  r: any,
+  currentUserId: string,
+  currentUserRole: Role
+): { canEdit: boolean; canDelete: boolean; canMarkPaid: boolean; isOwner: boolean; pendingRequest: boolean } {
+  const isOwner = r.record.createdById === currentUserId;
+  if (currentUserRole === "ADMIN") {
+    return { canEdit: true, canDelete: true, canMarkPaid: true, isOwner: true, pendingRequest: false };
+  }
+  if (currentUserRole === "DISPATCHER") {
+    const editable = isOwner && !!r.editWindow?.editable;
+    return {
+      canEdit: editable,
+      canDelete: isOwner,
+      canMarkPaid: editable,
+      isOwner,
+      pendingRequest: isOwner && !!r.editWindow?.pendingRequest,
+    };
+  }
+  return { canEdit: false, canDelete: false, canMarkPaid: false, isOwner: false, pendingRequest: false };
+}
+
 export default function IncomeClient({
   initialRecords,
   divisions,
-  canEdit,
+  currentUserId,
+  currentUserRole,
 }: {
   initialRecords: any[];
   divisions: Division[];
-  canEdit: boolean;
+  currentUserId: string;
+  currentUserRole: Role;
 }) {
   const router = useRouter();
+  const canCreate = currentUserRole !== "VIEWER";
+  const isDispatcher = currentUserRole === "DISPATCHER";
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -132,21 +246,40 @@ export default function IncomeClient({
   const [divisionCode, setDivisionCode] = useState(divisions[0]?.code ?? "AMBULANCE");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState("");
+  const [discountType, setDiscountType] = useState("");
+  const [discountValue, setDiscountValue] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<"UNPAID" | "PAID" | "COMPLIMENTARY">("UNPAID");
   const [paymentMethod, setPaymentMethod] = useState("POS");
+  const [netReceivedAmount, setNetReceivedAmount] = useState("");
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatAmount, setVatAmount] = useState("");
 
+  // VAT is calculated on the net (after-discount) amount, so any of the
+  // three inputs changing re-derives the suggested VAT figure.
+  function refreshVat(nextAmount: string, nextType: string, nextValue: string, enabled: boolean) {
+    if (enabled) setVatAmount(autoVat(computeDiscount(nextAmount, nextType, nextValue).net));
+  }
   function onAmountChange(v: string) {
     setAmount(v);
-    if (vatEnabled) setVatAmount(autoVat(v));
+    refreshVat(v, discountType, discountValue, vatEnabled);
+  }
+  function onDiscountTypeChange(v: string) {
+    setDiscountType(v);
+    if (!v) setDiscountValue("");
+    refreshVat(amount, v, v ? discountValue : "", vatEnabled);
+  }
+  function onDiscountValueChange(v: string) {
+    setDiscountValue(v);
+    refreshVat(amount, discountType, v, vatEnabled);
   }
   function onVatEnabledChange(checked: boolean) {
     setVatEnabled(checked);
-    if (checked) setVatAmount(autoVat(amount));
+    refreshVat(amount, discountType, discountValue, checked);
   }
-  const totalCharged = Number(amount || 0) + Number(vatAmount || 0);
+  const netAmount = computeDiscount(amount, discountType, discountValue).net;
+  const totalCharged = netAmount + Number(vatAmount || 0);
 
   const [includeFields, setIncludeFields] = useState<Record<ClientFieldKey, boolean>>(emptyClientFields());
   const [clientValues, setClientValues] = useState<Record<ClientFieldKey, string>>(emptyClientValues());
@@ -183,8 +316,6 @@ export default function IncomeClient({
   const [selected, setSelected] = useState<any | null>(null);
   const [payingRecord, setPayingRecord] = useState<any | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
-
-  const dateLabel = paymentStatus === "PAID" ? "Payment Date" : "Date";
 
   const filteredRecords = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -245,10 +376,15 @@ export default function IncomeClient({
         divisionCode,
         title,
         date,
+        // amount is the gross figure; the API derives the stored net from
+        // the discount fields (see createIncomeSchema).
         amount: isComplimentary ? 0 : Number(amount || 0),
+        discountType: isComplimentary || !discountType ? undefined : discountType,
+        discountValue: isComplimentary || !discountType ? undefined : Number(discountValue || 0),
         paymentStatus,
-        paymentDate: paymentStatus !== "UNPAID" ? date : undefined,
+        paymentDate: paymentStatus === "PAID" ? paymentDate : isComplimentary ? date : undefined,
         paymentMethod: paymentStatus === "PAID" ? paymentMethod : isComplimentary ? "COMPLIMENTARY" : undefined,
+        netReceivedAmount: paymentStatus === "PAID" ? Number(netReceivedAmount || 0) : isComplimentary ? 0 : undefined,
         vatEnabled,
         vatAmount: vatEnabled ? Number(vatAmount || 0) : undefined,
         hasClientDetails,
@@ -270,6 +406,11 @@ export default function IncomeClient({
       setShowForm(false);
       setTitle("");
       setAmount("");
+      setDiscountType("");
+      setDiscountValue("");
+      setPaymentDate(new Date().toISOString().slice(0, 10));
+      setNetReceivedAmount("");
+      setPaymentStatus("UNPAID");
       setVatEnabled(false);
       setVatAmount("");
       setIncludeFields(emptyClientFields());
@@ -287,10 +428,12 @@ export default function IncomeClient({
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Income</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
-            Export to Excel
-          </Button>
-          {canEdit && (
+          {!isDispatcher && (
+            <Button variant="secondary" onClick={() => setShowExportDialog(true)}>
+              Export to Excel
+            </Button>
+          )}
+          {canCreate && (
             <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cancel" : "+ New Income"}
             </Button>
@@ -316,8 +459,9 @@ export default function IncomeClient({
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">
-                {dateLabel} <span className="text-red-500">*</span>
+                Service Date <span className="text-red-500">*</span>
               </label>
+              <p className="text-xs text-slate-400 mb-1">When the service was performed.</p>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
             </div>
           </div>
@@ -329,42 +473,92 @@ export default function IncomeClient({
             <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+          <div className="border-t border-slate-100 pt-4 space-y-4">
             {paymentStatus !== "COMPLIMENTARY" ? (
-              <div>
-                <label className="block text-xs font-medium mb-1">
-                  Net Amount Received (AED) <span className="text-red-500">*</span>
-                </label>
-                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => onAmountChange(e.target.value)} required className={inputClass} />
-              </div>
+              <AmountWithDiscountFields
+                amount={amount}
+                discountType={discountType}
+                discountValue={discountValue}
+                onAmountChange={onAmountChange}
+                onDiscountTypeChange={onDiscountTypeChange}
+                onDiscountValueChange={onDiscountValueChange}
+                required
+              />
             ) : (
               <div>
-                <label className="block text-xs font-medium mb-1">Net Amount Received (AED)</label>
+                <label className="block text-xs font-medium mb-1">Amount Charged (AED)</label>
                 <div className="w-full border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-sm text-slate-500">
                   Complimentary — recorded at AED 0.00
                 </div>
               </div>
             )}
-            <div>
-              <label className="block text-xs font-medium mb-1">Payment Status</label>
-              <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as any)} className={inputClass}>
-                <option value="UNPAID">Unpaid</option>
-                <option value="PAID">Paid</option>
-                <option value="COMPLIMENTARY">Complimentary</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1">Payment Status</label>
+                <select
+                  value={paymentStatus}
+                  onChange={(e) => {
+                    const next = e.target.value as "UNPAID" | "PAID" | "COMPLIMENTARY";
+                    setPaymentStatus(next);
+                    if (next === "PAID" && !netReceivedAmount) setNetReceivedAmount(totalCharged.toFixed(2));
+                  }}
+                  className={inputClass}
+                >
+                  <option value="UNPAID">Unpaid</option>
+                  {!isDispatcher && <option value="PAID">Paid</option>}
+                  <option value="COMPLIMENTARY">Complimentary</option>
+                </select>
+                {isDispatcher && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Create it as Unpaid, then mark it paid yourself within your edit window — or ask an admin.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          {paymentStatus === "PAID" && (
-            <div className="bg-slate-50 rounded-lg p-3 animate-fade-slide-in">
-              <label className="block text-xs font-medium mb-1">
-                Payment Method (required) <span className="text-red-500">*</span>
-              </label>
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
-                {PAYMENT_METHODS.filter((m) => m !== "COMPLIMENTARY").map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+          {paymentStatus === "PAID" && !isDispatcher && (
+            <div className="bg-slate-50 rounded-lg p-3 animate-fade-slide-in grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1">
+                  Payment Method <span className="text-red-500">*</span>
+                </label>
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
+                  {PAYMENT_METHODS.filter((m) => m !== "COMPLIMENTARY").map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">
+                  Payment Date <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-slate-400 mb-1">When the client actually paid.</p>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium mb-1">
+                  Net Amount Received (AED) <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-slate-400 mb-1">
+                  The actual amount that landed after processor fees/deductions.
+                </p>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={netReceivedAmount}
+                  onChange={(e) => setNetReceivedAmount(e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </div>
             </div>
           )}
 
@@ -386,7 +580,7 @@ export default function IncomeClient({
             </div>
             {vatEnabled && paymentStatus !== "COMPLIMENTARY" && (
               <p className="text-xs text-slate-500 mt-1.5">
-                Amount charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+                Total (after discount, incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
               </p>
             )}
           </div>
@@ -451,6 +645,13 @@ export default function IncomeClient({
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} rows={2} />
           </div>
 
+          {isDispatcher && (
+            <p className="text-xs text-amber-600">
+              You&apos;ll have 15 minutes after saving to edit this record. The timer runs in the background even if
+              you close the app — after it expires you&apos;ll need to request edit access from an admin.
+            </p>
+          )}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button type="submit" disabled={submitting}>
@@ -490,15 +691,18 @@ export default function IncomeClient({
           {filteredRecords.length} record{filteredRecords.length === 1 ? "" : "s"}
           {dateRange.dateFrom && <> &middot; {dateRange.label}</>}
         </span>
-        <span>
-          {filteredOutstanding > 0 && (
-            <>
-              <span className="text-amber-700">Outstanding: {filteredOutstanding.toFixed(2)} AED</span>
-              <span className="mx-2 text-slate-300">|</span>
-            </>
-          )}
-          <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
-        </span>
+        {/* Dispatchers see only their own records, listed — no totals/sums. */}
+        {!isDispatcher && (
+          <span>
+            {filteredOutstanding > 0 && (
+              <>
+                <span className="text-amber-700">Outstanding: {filteredOutstanding.toFixed(2)} AED</span>
+                <span className="mx-2 text-slate-300">|</span>
+              </>
+            )}
+            <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
+          </span>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
@@ -508,7 +712,8 @@ export default function IncomeClient({
               <th className="px-2 md:px-3 py-2.5">Ref #</th>
               <th className="px-2 md:px-3 py-2.5">Department</th>
               <th className="px-2 md:px-3 py-2.5">Title</th>
-              <th className="px-2 md:px-3 py-2.5">Date</th>
+              <th className="px-2 md:px-3 py-2.5">Service Date</th>
+              <th className="px-2 md:px-3 py-2.5">Paid On</th>
               <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
               <th className="px-2 md:px-3 py-2.5">Status</th>
               <th className="px-2 md:px-3 py-2.5">Client</th>
@@ -516,7 +721,9 @@ export default function IncomeClient({
             </tr>
           </thead>
           <tbody>
-            {filteredRecords.map((r) => (
+            {filteredRecords.map((r) => {
+              const perms = rowPermissions(r, currentUserId, currentUserRole);
+              return (
               <tr
                 key={r.record.id}
                 onClick={() => setSelected(r)}
@@ -526,6 +733,9 @@ export default function IncomeClient({
                 <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.title}</td>
                 <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                  {r.payment ? new Date(r.payment.paymentDate).toLocaleDateString() : "—"}
+                </td>
                 <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">
                   {r.record.paymentStatus === "COMPLIMENTARY" ? "Complimentary" : `${Number(r.record.amount).toFixed(2)} AED`}
                 </td>
@@ -561,14 +771,20 @@ export default function IncomeClient({
                   )}
                 </td>
                 <td className="px-2 md:px-3 py-2.5">
-                  {canEdit && r.record.paymentStatus === "UNPAID" && (
+                  {perms.canMarkPaid && r.record.paymentStatus === "UNPAID" && (
                     <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setPayingRecord(r); }}>Mark Paid</Button>
+                  )}
+                  {isDispatcher && perms.isOwner && !perms.canEdit && (
+                    <span className="text-[11px] text-slate-400">
+                      {perms.pendingRequest ? "Awaiting approval" : "Read-only"}
+                    </span>
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {filteredRecords.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-slate-400">No income records match.</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-slate-400">No income records match.</td></tr>
             )}
           </tbody>
         </table>
@@ -578,7 +794,7 @@ export default function IncomeClient({
         <IncomeDetailModal
           row={selected}
           divisions={divisions}
-          canEdit={canEdit}
+          perms={rowPermissions(selected, currentUserId, currentUserRole)}
           onClose={() => setSelected(null)}
           onChanged={() => {
             router.refresh();
@@ -621,8 +837,10 @@ function MarkPaidModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const amountCharged = Number(row.record.amount) + Number(row.record.vatAmount ?? 0);
   const [method, setMethod] = useState("POS");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [netReceivedAmount, setNetReceivedAmount] = useState(() => amountCharged.toFixed(2));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -633,7 +851,11 @@ function MarkPaidModal({
       const res = await fetch(`/api/income/${row.record.id}/payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentDate: date, paymentMethod: method }),
+        body: JSON.stringify({
+          paymentDate: date,
+          paymentMethod: method,
+          netReceivedAmount: Number(netReceivedAmount || 0),
+        }),
       });
       if (!res.ok) {
         setError((await res.json()).error ?? "Failed to record payment");
@@ -651,7 +873,7 @@ function MarkPaidModal({
         <p className="text-sm text-slate-600">
           Recording payment for <span className="font-medium">{row.record.title}</span>
           {" — "}
-          {Number(row.record.amount).toFixed(2)} AED.
+          Amount Charged: {amountCharged.toFixed(2)} AED.
         </p>
         <div>
           <label className="block text-xs font-medium mb-1">
@@ -669,6 +891,23 @@ function MarkPaidModal({
           </label>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
         </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">
+            Net Amount Received (AED) <span className="text-red-500">*</span>
+          </label>
+          <p className="text-xs text-slate-400 mb-1">
+            The actual amount that landed after processor fees/deductions.
+          </p>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={netReceivedAmount}
+            onChange={(e) => setNetReceivedAmount(e.target.value)}
+            required
+            className={inputClass}
+          />
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -682,13 +921,13 @@ function MarkPaidModal({
 function IncomeDetailModal({
   row,
   divisions,
-  canEdit,
+  perms,
   onClose,
   onChanged,
 }: {
   row: any;
   divisions: Division[];
-  canEdit: boolean;
+  perms: { canEdit: boolean; canDelete: boolean; isOwner: boolean; pendingRequest: boolean };
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -697,24 +936,61 @@ function IncomeDetailModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [requestingAccess, setRequestingAccess] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function requestEditAccess() {
+    setRequestingAccess(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/income/${record.id}/edit-request`, { method: "POST" });
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to request edit access");
+        return;
+      }
+      onChanged();
+    } finally {
+      setRequestingAccess(false);
+    }
+  }
 
   const [divisionCode, setDivisionCode] = useState(row.divisionCode);
   const [title, setTitle] = useState(record.title);
   const [date, setDate] = useState(new Date(record.date).toISOString().slice(0, 10));
-  const [amount, setAmount] = useState(String(record.amount));
+  // The form edits the gross figure; the stored amount is the net, so the
+  // gross is reconstructed as net + discountAmount.
+  const [amount, setAmount] = useState(
+    (Number(record.amount) + Number(record.discountAmount ?? 0)).toFixed(2)
+  );
+  const [discountType, setDiscountType] = useState(record.discountType ?? "");
+  const [discountValue, setDiscountValue] = useState(
+    record.discountValue ? String(record.discountValue) : ""
+  );
   const [vatEnabled, setVatEnabled] = useState(record.vatEnabled);
   const [vatAmount, setVatAmount] = useState(record.vatAmount ? String(record.vatAmount) : "");
 
+  function refreshVat(nextAmount: string, nextType: string, nextValue: string, enabled: boolean) {
+    if (enabled) setVatAmount(autoVat(computeDiscount(nextAmount, nextType, nextValue).net));
+  }
   function onAmountChange(v: string) {
     setAmount(v);
-    if (vatEnabled) setVatAmount(autoVat(v));
+    refreshVat(v, discountType, discountValue, vatEnabled);
+  }
+  function onDiscountTypeChange(v: string) {
+    setDiscountType(v);
+    if (!v) setDiscountValue("");
+    refreshVat(amount, v, v ? discountValue : "", vatEnabled);
+  }
+  function onDiscountValueChange(v: string) {
+    setDiscountValue(v);
+    refreshVat(amount, discountType, v, vatEnabled);
   }
   function onVatEnabledChange(checked: boolean) {
     setVatEnabled(checked);
-    if (checked) setVatAmount(autoVat(amount));
+    refreshVat(amount, discountType, discountValue, checked);
   }
-  const totalCharged = Number(amount || 0) + Number(vatAmount || 0);
+  const netAmount = computeDiscount(amount, discountType, discountValue).net;
+  const totalCharged = netAmount + Number(vatAmount || 0);
 
   const [includeFields, setIncludeFields] = useState<Record<ClientFieldKey, boolean>>({
     name: !!row.client?.name,
@@ -752,7 +1028,11 @@ function IncomeDetailModal({
           divisionCode,
           title,
           date,
+          // Gross figure — the API derives the stored net from the discount.
           amount: record.paymentStatus === "COMPLIMENTARY" ? 0 : Number(amount || 0),
+          discountType: record.paymentStatus === "COMPLIMENTARY" || !discountType ? undefined : discountType,
+          discountValue:
+            record.paymentStatus === "COMPLIMENTARY" || !discountType ? undefined : Number(discountValue || 0),
           vatEnabled,
           vatAmount: vatEnabled ? Number(vatAmount || 0) : undefined,
           hasClientDetails,
@@ -807,22 +1087,45 @@ function IncomeDetailModal({
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <DetailRow label="Reference #" value={formatRefNumber(record.refYear, record.refSeq)} />
               <DetailRow label="Department" value={row.divisionName} />
-              <DetailRow label="Date" value={new Date(record.date).toLocaleDateString()} />
+              <DetailRow label="Service Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow label="Title" value={record.title} full />
-              <DetailRow
-                label={record.vatEnabled ? "Net Amount Received" : "Amount"}
-                value={record.paymentStatus === "COMPLIMENTARY" ? "Complimentary — AED 0.00" : `${Number(record.amount).toFixed(2)} AED`}
-              />
-              <DetailRow label="Status" value={<Badge color={record.paymentStatus === "PAID" ? "green" : record.paymentStatus === "COMPLIMENTARY" ? "blue" : "amber"}>{record.paymentStatus}</Badge>} />
-              {record.vatEnabled && <DetailRow label="VAT (5%)" value={`${Number(record.vatAmount ?? 0).toFixed(2)} AED`} />}
-              {record.vatEnabled && record.paymentStatus !== "COMPLIMENTARY" && (
+              {record.discountAmount && Number(record.discountAmount) > 0 ? (
+                <>
+                  <DetailRow
+                    label="Amount (before discount)"
+                    value={`${(Number(record.amount) + Number(record.discountAmount)).toFixed(2)} AED`}
+                  />
+                  <DetailRow
+                    label={
+                      record.discountType === "PERCENT"
+                        ? `Discount (${Number(record.discountValue ?? 0)}%)`
+                        : "Discount"
+                    }
+                    value={`−${Number(record.discountAmount).toFixed(2)} AED`}
+                  />
+                  <DetailRow label="Net Amount" value={`${Number(record.amount).toFixed(2)} AED`} />
+                </>
+              ) : (
                 <DetailRow
-                  label="Amount Charged"
-                  value={`${(Number(record.amount) + Number(record.vatAmount ?? 0)).toFixed(2)} AED`}
+                  label={record.vatEnabled ? "Net Amount" : "Amount"}
+                  value={record.paymentStatus === "COMPLIMENTARY" ? "Complimentary — AED 0.00" : `${Number(record.amount).toFixed(2)} AED`}
                 />
               )}
+              <DetailRow label="Status" value={<Badge color={record.paymentStatus === "PAID" ? "green" : record.paymentStatus === "COMPLIMENTARY" ? "blue" : "amber"}>{record.paymentStatus}</Badge>} />
+              {record.vatEnabled && <DetailRow label="VAT (5%)" value={`${Number(record.vatAmount ?? 0).toFixed(2)} AED`} />}
+              <DetailRow
+                label="Amount Charged"
+                value={
+                  record.paymentStatus === "COMPLIMENTARY"
+                    ? "Complimentary — AED 0.00"
+                    : `${(Number(record.amount) + Number(record.vatAmount ?? 0)).toFixed(2)} AED`
+                }
+              />
               {row.payment && <DetailRow label="Payment Date" value={new Date(row.payment.paymentDate).toLocaleDateString()} />}
               {row.payment && <DetailRow label="Payment Method" value={row.payment.paymentMethod} />}
+              {row.payment && row.payment.netReceivedAmount !== null && (
+                <DetailRow label="Net Amount Received" value={`${Number(row.payment.netReceivedAmount).toFixed(2)} AED`} />
+              )}
               {row.client?.name && <DetailRow label="Client Name" value={row.client.name} />}
               {row.client?.phone && <DetailRow label="Client Phone" value={row.client.phone} />}
               {row.client?.email && <DetailRow label="Client Email" value={row.client.email} />}
@@ -851,7 +1154,7 @@ function IncomeDetailModal({
               ) : (
                 <p className="text-sm text-slate-400 mb-2">No invoice attached.</p>
               )}
-              {canEdit && (
+              {perms.canEdit && (
                 <div className="flex items-center gap-2">
                   <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className={`${fileInputClass} flex-1`} />
                   <Button variant="secondary" type="button" onClick={attachInvoice} disabled={submitting}>
@@ -863,14 +1166,30 @@ function IncomeDetailModal({
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            {canEdit && (
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                <Button variant="dangerGhost" onClick={() => setConfirmDelete(true)}>Delete</Button>
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  <span className="inline-flex items-center gap-1">
-                    <IconEdit className="w-3.5 h-3.5" /> Edit
+            {(perms.canEdit || perms.canDelete) && (
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                {perms.isOwner && !perms.canEdit && (
+                  <span className="text-xs text-slate-400 mr-auto">
+                    {perms.pendingRequest ? "Edit request awaiting admin approval" : "Edit window expired"}
                   </span>
-                </Button>
+                )}
+                {perms.canDelete && (
+                  <Button variant="dangerGhost" onClick={() => setConfirmDelete(true)}>Delete</Button>
+                )}
+                {perms.canEdit ? (
+                  <Button variant="secondary" onClick={() => setEditing(true)}>
+                    <span className="inline-flex items-center gap-1">
+                      <IconEdit className="w-3.5 h-3.5" /> Edit
+                    </span>
+                  </Button>
+                ) : (
+                  perms.isOwner &&
+                  !perms.pendingRequest && (
+                    <Button variant="secondary" onClick={requestEditAccess} disabled={requestingAccess}>
+                      {requestingAccess ? "Requesting..." : "Request Edit Access"}
+                    </Button>
+                  )
+                )}
               </div>
             )}
           </div>
@@ -886,7 +1205,7 @@ function IncomeDetailModal({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Date</label>
+                <label className="block text-xs font-medium mb-1">Service Date</label>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
               </div>
             </div>
@@ -895,10 +1214,15 @@ function IncomeDetailModal({
               <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
             </div>
             {record.paymentStatus !== "COMPLIMENTARY" && (
-              <div>
-                <label className="block text-xs font-medium mb-1">Net Amount Received (AED)</label>
-                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => onAmountChange(e.target.value)} required className={inputClass} />
-              </div>
+              <AmountWithDiscountFields
+                amount={amount}
+                discountType={discountType}
+                discountValue={discountValue}
+                onAmountChange={onAmountChange}
+                onDiscountTypeChange={onDiscountTypeChange}
+                onDiscountValueChange={onDiscountValueChange}
+                required
+              />
             )}
             <p className="text-xs text-slate-400">
               Payment status/method/date can&apos;t be changed here — payment history is permanent once recorded.
@@ -920,7 +1244,7 @@ function IncomeDetailModal({
               </div>
               {vatEnabled && record.paymentStatus !== "COMPLIMENTARY" && (
                 <p className="text-xs text-slate-500 mt-1.5">
-                  Amount charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+                  Total (after discount, incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
                 </p>
               )}
             </div>

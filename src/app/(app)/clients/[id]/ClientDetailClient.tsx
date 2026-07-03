@@ -77,14 +77,22 @@ export default function ClientDetailClient({
     let outstanding = 0;
     let paid = 0;
     let vat = 0;
+    let lastService: number | null = null;
+    let lastPayment: number | null = null;
     for (const r of records) {
       const amount = Number(r.record.amount);
       billed += amount;
       vat += Number(r.record.vatAmount ?? 0);
       if (r.record.paymentStatus === "UNPAID") outstanding += amount;
       if (r.record.paymentStatus === "PAID") paid += amount;
+      const serviceTime = new Date(r.record.date).getTime();
+      if (lastService === null || serviceTime > lastService) lastService = serviceTime;
+      if (r.payment) {
+        const paymentTime = new Date(r.payment.paymentDate).getTime();
+        if (lastPayment === null || paymentTime > lastPayment) lastPayment = paymentTime;
+      }
     }
-    return { billed, outstanding, paid, vat };
+    return { billed, outstanding, paid, vat, lastService, lastPayment };
   }, [records]);
 
   const displayName = client.companyName || client.name || "Unnamed client";
@@ -146,11 +154,13 @@ export default function ClientDetailClient({
 
       {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard label="Total Billed" value={`${stats.billed.toFixed(2)} AED`} />
         <StatCard label="Outstanding" value={`${stats.outstanding.toFixed(2)} AED`} tone={stats.outstanding > 0 ? "amber" : undefined} />
         <StatCard label="Collected (Paid)" value={`${stats.paid.toFixed(2)} AED`} tone="green" />
         <StatCard label="VAT Charged" value={`${stats.vat.toFixed(2)} AED`} />
+        <StatCard label="Last Service" value={stats.lastService ? new Date(stats.lastService).toLocaleDateString() : "—"} />
+        <StatCard label="Last Payment" value={stats.lastPayment ? new Date(stats.lastPayment).toLocaleDateString() : "—"} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -190,9 +200,10 @@ export default function ClientDetailClient({
                   <th className="px-3 py-2.5">Ref #</th>
                   <th className="px-3 py-2.5">Department</th>
                   <th className="px-3 py-2.5">Title</th>
-                  <th className="px-3 py-2.5">Date</th>
+                  <th className="px-3 py-2.5">Service Date</th>
                   <th className="px-3 py-2.5 text-right">Amount</th>
                   <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5">Paid On</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,11 +233,14 @@ export default function ClientDetailClient({
                         {r.record.paymentStatus}
                       </Badge>
                     </td>
+                    <td className="px-3 py-2.5 text-slate-500">
+                      {r.payment ? new Date(r.payment.paymentDate).toLocaleDateString() : "—"}
+                    </td>
                   </tr>
                 ))}
                 {records.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-400">
+                    <td colSpan={7} className="p-6 text-center text-slate-400">
                       No income records for this client yet (within your departments).
                     </td>
                   </tr>

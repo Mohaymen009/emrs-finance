@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot edit clients" }, { status: 403 });
     }
     const { id } = await params;
@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot delete clients" }, { status: 403 });
     }
     const { id } = await params;

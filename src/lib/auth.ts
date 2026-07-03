@@ -44,7 +44,7 @@ export type SessionUser = {
   id: string;
   username: string;
   fullName: string;
-  role: "ADMIN" | "VIEWER";
+  role: "ADMIN" | "VIEWER" | "DISPATCHER";
   divisionCodes: ("AMBULANCE" | "HOME_HEALTHCARE")[];
 };
 

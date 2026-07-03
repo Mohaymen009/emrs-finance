@@ -11,7 +11,7 @@ export default async function ClientsPage() {
   return (
     <ClientsClient
       initialClients={JSON.parse(JSON.stringify(rows))}
-      canEdit={user.role === "ADMIN"}
+      canEdit={user.role !== "VIEWER"}
     />
   );
 }

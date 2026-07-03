@@ -8,6 +8,9 @@ import { handleApiError } from "@/lib/api-helpers";
 export async function GET() {
   try {
     const user = await requireUser();
+    if (user.role === "DISPATCHER") {
+      return NextResponse.json({ error: "Dispatchers cannot view financial dashboards." }, { status: 403 });
+    }
     const allDivisions = await getAllDivisions();
     const visibleDivisions = allDivisions.filter((d) => user.divisionCodes.includes(d.code));
 

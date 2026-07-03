@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import {
   computeDivisionStats,
@@ -45,6 +46,8 @@ export default async function DashboardPage({
 }) {
   const user = await getCurrentUser();
   if (!user) return null;
+  // Dispatchers get no visibility into company-wide financial reporting.
+  if (user.role === "DISPATCHER") redirect("/income");
 
   const { dateFrom, dateTo } = await searchParams;
   const range = {

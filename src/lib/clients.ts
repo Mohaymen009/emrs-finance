@@ -60,7 +60,10 @@ export type ClientListRow = {
   totalBilled: number;
   totalVat: number;
   outstanding: number;
+  // Most recent service performed for the client (income service date).
   lastActivity: string | null;
+  // Most recent time the client actually paid us (payment date).
+  lastPayment: string | null;
 };
 
 /**
@@ -80,6 +83,7 @@ export async function listClientsWithStats(user: SessionUser): Promise<ClientLis
       totalVat: sql<string>`coalesce(sum(${incomeRecords.vatAmount}), 0)`,
       outstanding: sql<string>`coalesce(sum(case when ${incomeRecords.paymentStatus} = 'UNPAID' then ${incomeRecords.amount} else 0 end), 0)`,
       lastActivity: sql<string | null>`max(${incomeRecords.date})`,
+      lastPayment: sql<string | null>`max(${payments.paymentDate})`,
     })
     .from(clients)
     .leftJoin(
@@ -90,6 +94,8 @@ export async function listClientsWithStats(user: SessionUser): Promise<ClientLis
         inArray(incomeRecords.divisionId, divisionIds)
       )
     )
+    // 1:1 — payments.incomeRecordId is unique, so this can't fan out rows.
+    .leftJoin(payments, eq(payments.incomeRecordId, incomeRecords.id))
     .groupBy(clients.id)
     .orderBy(desc(clients.createdAt));
 
@@ -100,6 +106,7 @@ export async function listClientsWithStats(user: SessionUser): Promise<ClientLis
     totalVat: Number(r.totalVat),
     outstanding: Number(r.outstanding),
     lastActivity: r.lastActivity,
+    lastPayment: r.lastPayment,
   }));
 }
 

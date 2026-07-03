@@ -10,12 +10,35 @@ export const clientDetailsSchema = z.object({
   trnNumber: z.string().trim().optional(),
 });
 
+// Optional discount on income: amount is submitted as the gross (pre-
+// discount) figure; the API computes the deducted AED value and stores the
+// net. PERCENT values are 0-100.
+const discountFields = {
+  discountType: z.enum(["FIXED", "PERCENT"]).optional(),
+  discountValue: z.coerce.number().nonnegative().optional(),
+};
+
+function validateDiscount(
+  data: { discountType?: "FIXED" | "PERCENT"; discountValue?: number },
+  ctx: z.RefinementCtx
+) {
+  if (data.discountType && data.discountValue === undefined) {
+    ctx.addIssue({ code: "custom", message: "Discount value is required when a discount type is selected", path: ["discountValue"] });
+  }
+  if (data.discountType === "PERCENT" && data.discountValue !== undefined && data.discountValue > 100) {
+    ctx.addIssue({ code: "custom", message: "Percentage discount cannot exceed 100%", path: ["discountValue"] });
+  }
+}
+
 export const createIncomeSchema = z
   .object({
     divisionCode: divisionCodeSchema,
     title: z.string().trim().min(1, "Title / description is required"),
+    // Service date — when the service was performed.
     date: z.coerce.date(),
+    // Gross amount before discount; the API derives the stored net.
     amount: z.coerce.number().nonnegative(),
+    ...discountFields,
     paymentStatus: z.enum(["UNPAID", "PAID", "COMPLIMENTARY"]).default("UNPAID"),
     vatEnabled: z.boolean().default(false),
     vatAmount: z.coerce.number().nonnegative().optional(),
@@ -27,6 +50,9 @@ export const createIncomeSchema = z
     paymentMethod: z
       .enum(["POS", "TABBY", "BANK_TRANSFER", "CASH", "STRIPE", "COMPLIMENTARY"])
       .optional(),
+    // The actual amount that lands after processor fees/deductions — only
+    // meaningful (and required) once the record is Paid.
+    netReceivedAmount: z.coerce.number().nonnegative().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.paymentStatus === "PAID") {
@@ -36,34 +62,45 @@ export const createIncomeSchema = z
       if (!data.paymentMethod) {
         ctx.addIssue({ code: "custom", message: "Payment method is required when status is Paid", path: ["paymentMethod"] });
       }
+      if (data.netReceivedAmount === undefined) {
+        ctx.addIssue({ code: "custom", message: "Net amount received is required when status is Paid", path: ["netReceivedAmount"] });
+      }
     }
     if (data.vatEnabled && data.vatAmount === undefined) {
       ctx.addIssue({ code: "custom", message: "VAT amount is required when VAT is enabled", path: ["vatAmount"] });
     }
+    validateDiscount(data, ctx);
   });
 
 export type CreateIncomeInput = z.infer<typeof createIncomeSchema>;
 
 // Edit never touches paymentStatus/paymentDate/paymentMethod — payment
 // history is permanent/immutable once recorded (see src/app/api/income/route.ts).
-export const updateIncomeSchema = z.object({
-  divisionCode: divisionCodeSchema.optional(),
-  title: z.string().trim().min(1).optional(),
-  date: z.coerce.date().optional(),
-  amount: z.coerce.number().nonnegative().optional(),
-  vatEnabled: z.boolean().optional(),
-  vatAmount: z.coerce.number().nonnegative().optional(),
-  hasClientDetails: z.boolean().optional(),
-  client: clientDetailsSchema.optional(),
-  notes: z.string().trim().optional(),
-});
+export const updateIncomeSchema = z
+  .object({
+    divisionCode: divisionCodeSchema.optional(),
+    title: z.string().trim().min(1).optional(),
+    date: z.coerce.date().optional(),
+    // Gross amount before discount, like createIncomeSchema.
+    amount: z.coerce.number().nonnegative().optional(),
+    ...discountFields,
+    vatEnabled: z.boolean().optional(),
+    vatAmount: z.coerce.number().nonnegative().optional(),
+    hasClientDetails: z.boolean().optional(),
+    client: clientDetailsSchema.optional(),
+    notes: z.string().trim().optional(),
+  })
+  .superRefine(validateDiscount);
 
 export const createExpenseSchema = z.object({
   divisionCode: divisionCodeSchema,
   description: z.string().trim().min(1, "Expense description is required"),
   category: z.string().trim().min(1, "Category is required"),
   amount: z.coerce.number().positive(),
+  // Purchase/service date — when we bought the item or received the service.
   date: z.coerce.date(),
+  // When we actually paid for it; optional (an expense may not be paid yet).
+  paymentDate: z.coerce.date().optional(),
   supplierName: z.string().trim().optional(),
   vatEnabled: z.boolean().default(false),
   vatAmount: z.coerce.number().nonnegative().optional(),
@@ -77,6 +114,8 @@ export const updateExpenseSchema = z.object({
   description: z.string().trim().min(1).optional(),
   category: z.string().trim().min(1).optional(),
   date: z.coerce.date().optional(),
+  // null clears a previously set payment date.
+  paymentDate: z.coerce.date().nullable().optional(),
   amount: z.coerce.number().positive().optional(),
   supplierName: z.string().trim().optional(),
   vatEnabled: z.boolean().optional(),
@@ -137,13 +176,13 @@ export const createUserSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
   fullName: z.string().trim().min(1, "Full name is required"),
-  role: z.enum(["ADMIN", "VIEWER"]),
+  role: z.enum(["ADMIN", "VIEWER", "DISPATCHER"]),
   divisionCodes: z.array(divisionCodeSchema).default([]),
 });
 
 export const updateUserSchema = z.object({
   fullName: z.string().trim().min(1).optional(),
-  role: z.enum(["ADMIN", "VIEWER"]).optional(),
+  role: z.enum(["ADMIN", "VIEWER", "DISPATCHER"]).optional(),
   isActive: z.boolean().optional(),
   divisionCodes: z.array(divisionCodeSchema).optional(),
   newPassword: passwordSchema.optional(),
@@ -155,4 +194,9 @@ export const exportFiltersSchema = z.object({
   dateTo: z.coerce.date().optional(),
   paymentStatus: z.enum(["UNPAID", "PAID", "COMPLIMENTARY"]).optional(),
   vatOnly: z.boolean().optional(),
+});
+
+// Admin approve/deny action on a Dispatcher's edit-access request.
+export const editRequestActionSchema = z.object({
+  action: z.enum(["APPROVE", "DENY"]),
 });

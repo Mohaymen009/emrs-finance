@@ -1,7 +1,30 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { incomeRecords, divisions, clients, payments, expenseRecords, receipts, invoices } from "@/db/schema";
 import type { SessionUser } from "@/lib/auth";
+import { activatePendingGrants, computeEditWindow, getLatestEditRequests } from "@/lib/editWindow";
+
+/**
+ * Attaches a computed `editWindow` to each of a Dispatcher's own rows (used
+ * by the income/expense list pages to gate Edit/Mark Paid buttons), and —
+ * as a side effect — activates any Admin-approved-but-not-yet-active grants
+ * for those records. This function call is the "dispatcher visits the site"
+ * moment the 15-minute grant window starts counting from (see
+ * src/lib/editWindow.ts).
+ */
+async function attachEditWindows<T extends { record: { id: string; createdAt: Date } }>(
+  recordType: "INCOME" | "EXPENSE",
+  rows: T[]
+): Promise<(T & { editWindow: { editable: boolean; pendingRequest: boolean } })[]> {
+  const ids = rows.map((r) => r.record.id);
+  await activatePendingGrants(recordType, ids);
+  const latestByRecord = await getLatestEditRequests(recordType, ids);
+  const now = new Date();
+  return rows.map((r) => ({
+    ...r,
+    editWindow: computeEditWindow(r.record.createdAt, latestByRecord.get(r.record.id) ?? null, now),
+  }));
+}
 
 export async function listIncomeForUser(user: SessionUser) {
   const allDivisions = await db.select().from(divisions);
@@ -16,7 +39,13 @@ export async function listIncomeForUser(user: SessionUser) {
     .leftJoin(payments, eq(payments.incomeRecordId, incomeRecords.id))
     .where(isNull(incomeRecords.deletedAt));
 
-  const filtered = rows.filter((r) => allowedIds.includes(r.record.divisionId));
+  // Dispatchers only ever see their own records — never another
+  // dispatcher's or the company's full ledger.
+  const filtered = rows.filter(
+    (r) =>
+      allowedIds.includes(r.record.divisionId) &&
+      (user.role !== "DISPATCHER" || r.record.createdById === user.id)
+  );
 
   const withInvoices = await Promise.all(
     filtered.map(async (r) => {
@@ -25,7 +54,10 @@ export async function listIncomeForUser(user: SessionUser) {
     })
   );
 
-  return withInvoices.sort((a, b) => b.record.date.getTime() - a.record.date.getTime());
+  const withEditWindows =
+    user.role === "DISPATCHER" ? await attachEditWindows("INCOME", withInvoices) : withInvoices;
+
+  return withEditWindows.sort((a, b) => b.record.date.getTime() - a.record.date.getTime());
 }
 
 export async function listExpensesForUser(user: SessionUser) {
@@ -39,7 +71,11 @@ export async function listExpensesForUser(user: SessionUser) {
     .innerJoin(divisions, eq(expenseRecords.divisionId, divisions.id))
     .where(isNull(expenseRecords.deletedAt));
 
-  const filtered = rows.filter((r) => allowedIds.includes(r.record.divisionId));
+  const filtered = rows.filter(
+    (r) =>
+      allowedIds.includes(r.record.divisionId) &&
+      (user.role !== "DISPATCHER" || r.record.createdById === user.id)
+  );
 
   const withReceipts = await Promise.all(
     filtered.map(async (r) => {
@@ -48,7 +84,10 @@ export async function listExpensesForUser(user: SessionUser) {
     })
   );
 
-  return withReceipts.sort((a, b) => b.record.date.getTime() - a.record.date.getTime());
+  const withEditWindows =
+    user.role === "DISPATCHER" ? await attachEditWindows("EXPENSE", withReceipts) : withReceipts;
+
+  return withEditWindows.sort((a, b) => b.record.date.getTime() - a.record.date.getTime());
 }
 
 export async function divisionsForUser(user: SessionUser) {

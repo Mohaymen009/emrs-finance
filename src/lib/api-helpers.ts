@@ -40,6 +40,27 @@ export function handleApiError(err: unknown): NextResponse {
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }
 
+/**
+ * Standard bookkeeping order for income: gross (amount charged for the
+ * service) minus discount = net (the taxable base stored in amount; VAT is
+ * calculated on it). The deducted AED value is stored explicitly so the
+ * gross is always recoverable as net + discountAmount, with no rounding
+ * ambiguity for percentage discounts. A discount can never exceed the gross.
+ */
+export function applyDiscount(params: {
+  grossAmount: number;
+  discountType?: "FIXED" | "PERCENT";
+  discountValue?: number;
+}): { netAmount: number; discountAmount: number | null } {
+  const { grossAmount, discountType, discountValue } = params;
+  if (!discountType || !discountValue || grossAmount <= 0) {
+    return { netAmount: grossAmount, discountAmount: null };
+  }
+  const raw = discountType === "PERCENT" ? (grossAmount * discountValue) / 100 : discountValue;
+  const discountAmount = Math.min(Number(raw.toFixed(2)), grossAmount);
+  return { netAmount: Number((grossAmount - discountAmount).toFixed(2)), discountAmount };
+}
+
 /** Applies the business rule: Complimentary payments always net to zero. */
 export function applyComplimentaryRule(params: {
   paymentStatus: "UNPAID" | "PAID" | "COMPLIMENTARY";

@@ -12,7 +12,8 @@ export default async function IncomePage() {
     <IncomeClient
       initialRecords={JSON.parse(JSON.stringify(records))}
       divisions={divisions.map((d) => ({ code: d.code, name: d.name }))}
-      canEdit={user.role === "ADMIN"}
+      currentUserId={user.id}
+      currentUserRole={user.role}
     />
   );
 }

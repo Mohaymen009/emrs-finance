@@ -17,7 +17,7 @@ import { createId } from "@paralleldrive/cuid2";
 // ENUMS
 // ---------------------------------------------------------------------------
 
-export const roleEnum = pgEnum("role", ["ADMIN", "VIEWER"]);
+export const roleEnum = pgEnum("role", ["ADMIN", "VIEWER", "DISPATCHER"]);
 export const divisionCodeEnum = pgEnum("division_code", [
   "AMBULANCE",
   "HOME_HEALTHCARE",
@@ -57,12 +57,20 @@ export const auditActionEnum = pgEnum("audit_action", [
   "CLIENT_CREATED",
   "CLIENT_UPDATED",
   "CLIENT_DELETED",
+  "EDIT_ACCESS_REQUESTED",
+  "EDIT_ACCESS_GRANTED",
+  "EDIT_ACCESS_DENIED",
 ]);
 export const exportTypeEnum = pgEnum("export_type", [
   "INCOME",
   "EXPENSE",
   "VAT",
   "PROFIT",
+]);
+export const editRequestStatusEnum = pgEnum("edit_request_status", [
+  "PENDING",
+  "APPROVED",
+  "DENIED",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -147,8 +155,19 @@ export const incomeRecords = pgTable(
     refSeq: integer("ref_seq"),
     divisionId: text("division_id").notNull().references(() => divisions.id),
     title: text("title").notNull(),
+    // The service date — when the service was performed. The payment date
+    // lives on the payments table (one immutable payment per record).
     date: timestamp("date", { withTimezone: true }).notNull(),
+    // Net amount after discount — the taxable base every report/aggregate
+    // sums. The gross (pre-discount) amount is amount + discountAmount.
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    // Optional discount: FIXED (discountValue in AED) or PERCENT
+    // (discountValue as a 0-100 percentage). discountAmount is the computed
+    // AED value actually deducted, stored so gross derivation is exact.
+    // All nullable so adding them is a safe no-op for existing rows.
+    discountType: text("discount_type"), // "FIXED" | "PERCENT"
+    discountValue: numeric("discount_value", { precision: 14, scale: 2 }),
+    discountAmount: numeric("discount_amount", { precision: 14, scale: 2 }),
     vatEnabled: boolean("vat_enabled").notNull().default(false),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2 }),
     paymentStatus: paymentStatusEnum("payment_status").notNull().default("UNPAID"),
@@ -185,7 +204,11 @@ export const expenseRecords = pgTable(
     // safe no-op for existing rows (same rationale as refYear/refSeq above).
     category: text("category"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    // The purchase/service date — when we bought the item or received the
+    // service. paymentDate is when we actually paid for it; nullable both
+    // for existing rows and for expenses not yet paid.
     date: timestamp("date", { withTimezone: true }).notNull(),
+    paymentDate: timestamp("payment_date", { withTimezone: true }),
     supplierName: text("supplier_name"),
     vatEnabled: boolean("vat_enabled").notNull().default(false),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2 }),
@@ -234,9 +257,42 @@ export const payments = pgTable("payments", {
   incomeRecordId: text("income_record_id").notNull().unique().references(() => incomeRecords.id),
   paymentDate: timestamp("payment_date", { withTimezone: true }).notNull(),
   paymentMethod: paymentMethodEnum("payment_method").notNull(),
+  // The actual amount that landed after payment-processor fees/deductions —
+  // distinct from incomeRecords.amount (the amount charged to the client).
+  // Nullable only for legacy rows recorded before this column existed.
+  netReceivedAmount: numeric("net_received_amount", { precision: 14, scale: 2 }),
   recordedById: text("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// EDIT ACCESS REQUESTS (Dispatcher role: request a fresh 15-min edit window
+// on an income/expense record after their original window has lapsed)
+// ---------------------------------------------------------------------------
+
+export const editAccessRequests = pgTable(
+  "edit_access_requests",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    // No FK — recordId points into either incomeRecords or expenseRecords
+    // depending on recordType, mirroring auditLogs.recordId below.
+    recordType: text("record_type").notNull(), // "INCOME" | "EXPENSE"
+    recordId: text("record_id").notNull(),
+    requestedById: text("requested_by_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    status: editRequestStatusEnum("status").notNull().default("PENDING"),
+    resolvedById: text("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    // When the granted 15-minute window actually starts ticking — set lazily
+    // on the dispatcher's next visit to the record after approval, not at
+    // approval time itself (see src/lib/editWindow.ts).
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("edit_requests_record_idx").on(t.recordType, t.recordId),
+    index("edit_requests_status_idx").on(t.status),
+  ]
+);
 
 // ---------------------------------------------------------------------------
 // AUDIT / LOGIN / EXPORT LOGS (immutable, append-only)

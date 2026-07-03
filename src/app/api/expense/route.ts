@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, lte, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseRecords, divisions, receipts } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { createExpenseSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
+import { nextRefNumber } from "@/lib/refseq";
 import { assertValidUpload, saveFileToPrivateStorage } from "@/lib/storage";
 
 export async function GET(req: NextRequest) {
@@ -39,7 +40,10 @@ export async function GET(req: NextRequest) {
       .leftJoin(receipts, eq(receipts.expenseRecordId, expenseRecords.id))
       .where(and(...conditions));
 
-    const filtered = rows.filter((r) => divisionIds.includes(r.record.divisionId));
+    // Dispatchers only ever see their own records.
+    const filtered = rows.filter(
+      (r) => divisionIds.includes(r.record.divisionId) && (user.role !== "DISPATCHER" || r.record.createdById === user.id)
+    );
     return NextResponse.json({ records: filtered });
   } catch (err) {
     return handleApiError(err);
@@ -51,7 +55,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot create records" }, { status: 403 });
     }
 
@@ -67,6 +71,7 @@ export async function POST(req: NextRequest) {
       category: form.get("category"),
       amount: form.get("amount"),
       date: form.get("date"),
+      paymentDate: form.get("paymentDate") || undefined,
       supplierName: form.get("supplierName") || undefined,
       vatEnabled: form.get("vatEnabled") === "true",
       vatAmount: form.get("vatAmount") || undefined,
@@ -82,13 +87,8 @@ export async function POST(req: NextRequest) {
       .limit(1);
     if (!division) return NextResponse.json({ error: "Unknown division" }, { status: 400 });
 
-    // See the matching comment in api/income/route.ts.
-    const refYear = new Date().getFullYear();
-    const [maxRow] = await db
-      .select({ max: sql<number>`coalesce(max(${expenseRecords.refSeq}), 0)` })
-      .from(expenseRecords)
-      .where(and(eq(expenseRecords.refYear, refYear), isNull(expenseRecords.deletedAt)));
-    const refSeq = Number(maxRow?.max ?? 0) + 1;
+    // Reference number keyed to the purchase date's year — see nextRefNumber.
+    const { refYear, refSeq } = await nextRefNumber(expenseRecords, input.date);
 
     const [record] = await db
       .insert(expenseRecords)
@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
         category: input.category,
         amount: input.amount.toFixed(2),
         date: input.date,
+        paymentDate: input.paymentDate,
         supplierName: input.supplierName,
         vatEnabled: input.vatEnabled,
         vatAmount: input.vatEnabled ? String(input.vatAmount ?? 0) : null,

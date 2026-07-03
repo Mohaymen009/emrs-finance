@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, lte, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { incomeRecords, divisions, clients, payments, invoices } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { findOrCreateClient } from "@/lib/clients";
 import { writeAuditLog } from "@/lib/audit";
 import { createIncomeSchema } from "@/lib/validation";
-import { handleApiError, applyComplimentaryRule } from "@/lib/api-helpers";
+import { handleApiError, applyComplimentaryRule, applyDiscount } from "@/lib/api-helpers";
+import { nextRefNumber } from "@/lib/refseq";
 import { assertValidUpload, saveFileToPrivateStorage } from "@/lib/storage";
 
 // GET /api/income?division=AMBULANCE&status=PAID&dateFrom=...&dateTo=...
@@ -53,7 +54,10 @@ export async function GET(req: NextRequest) {
       .leftJoin(payments, eq(payments.incomeRecordId, incomeRecords.id))
       .where(and(...conditions));
 
-    const filtered = rows.filter((r) => divisionIds.includes(r.record.divisionId));
+    // Dispatchers only ever see their own records.
+    const filtered = rows.filter(
+      (r) => divisionIds.includes(r.record.divisionId) && (user.role !== "DISPATCHER" || r.record.createdById === user.id)
+    );
 
     return NextResponse.json({ records: filtered });
   } catch (err) {
@@ -70,7 +74,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot create records" }, { status: 403 });
     }
 
@@ -87,6 +91,17 @@ export async function POST(req: NextRequest) {
     const body = JSON.parse(payloadRaw);
     const input = createIncomeSchema.parse(body);
 
+    // Dispatchers can log a record as Unpaid or Complimentary only — marking
+    // something Paid is a financial-confirmation action gated the same way
+    // as editing (see POST /api/income/:id/payment), never available at
+    // creation time.
+    if (user.role === "DISPATCHER" && input.paymentStatus === "PAID") {
+      return NextResponse.json(
+        { error: "Dispatchers cannot create a record as Paid. Create it as Unpaid, then mark it paid within your edit window." },
+        { status: 403 }
+      );
+    }
+
     assertDivisionAccess(user, input.divisionCode);
 
     const [division] = await db
@@ -98,13 +113,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unknown division" }, { status: 400 });
     }
 
+    // Bookkeeping order: gross - discount = net (stored in amount; VAT is
+    // charged on it). Complimentary records still zero out entirely.
+    const { netAmount, discountAmount } = applyDiscount({
+      grossAmount: input.amount,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+    });
+
     // Business rule: Complimentary payment method or status always zeroes the amount,
     // but the record is still stored and included in reporting.
     const finalAmount = applyComplimentaryRule({
       paymentStatus: input.paymentStatus,
       paymentMethod: input.paymentMethod,
-      amount: input.amount,
+      amount: netAmount,
     });
+    // Complimentary records carry no discount fields — there is nothing to
+    // discount off a zeroed amount.
+    const isComplimentary =
+      input.paymentStatus === "COMPLIMENTARY" || input.paymentMethod === "COMPLIMENTARY";
 
     // Identical details reuse the existing client row (see findOrCreateClient)
     // so the Clients page can aggregate a client's full history.
@@ -113,16 +140,9 @@ export async function POST(req: NextRequest) {
       clientId = await findOrCreateClient(input.client);
     }
 
-    // Human-facing reference number (e.g. 20260001): year + sequence within
-    // that year. Computed from the current max for the year rather than a
-    // separate counter, so deleting the most recent record and creating a
-    // new one reuses that number instead of always climbing.
-    const refYear = new Date().getFullYear();
-    const [maxRow] = await db
-      .select({ max: sql<number>`coalesce(max(${incomeRecords.refSeq}), 0)` })
-      .from(incomeRecords)
-      .where(and(eq(incomeRecords.refYear, refYear), isNull(incomeRecords.deletedAt)));
-    const refSeq = Number(maxRow?.max ?? 0) + 1;
+    // Human-facing reference number (e.g. 20260001), keyed to the service
+    // date's year — see nextRefNumber.
+    const { refYear, refSeq } = await nextRefNumber(incomeRecords, input.date);
 
     const [record] = await db
       .insert(incomeRecords)
@@ -133,6 +153,10 @@ export async function POST(req: NextRequest) {
         title: input.title,
         date: input.date,
         amount: finalAmount.toFixed(2),
+        discountType: isComplimentary ? null : input.discountType ?? null,
+        discountValue:
+          isComplimentary || !input.discountType ? null : (input.discountValue ?? 0).toFixed(2),
+        discountAmount: isComplimentary || discountAmount === null ? null : discountAmount.toFixed(2),
         vatEnabled: input.vatEnabled,
         vatAmount: input.vatEnabled ? String(input.vatAmount ?? 0) : null,
         paymentStatus: input.paymentStatus,
@@ -153,6 +177,8 @@ export async function POST(req: NextRequest) {
           input.paymentStatus === "COMPLIMENTARY"
             ? "COMPLIMENTARY"
             : input.paymentMethod!,
+        netReceivedAmount:
+          input.paymentStatus === "COMPLIMENTARY" ? "0.00" : input.netReceivedAmount!.toFixed(2),
         recordedById: user.id,
       });
       await writeAuditLog({

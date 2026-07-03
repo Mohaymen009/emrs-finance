@@ -6,10 +6,18 @@ import { incomeRecords, divisions, payments } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { handleApiError, applyComplimentaryRule } from "@/lib/api-helpers";
+import { getEditWindowForRecord } from "@/lib/editWindow";
 
 const markPaidSchema = z.object({
   paymentDate: z.coerce.date(),
   paymentMethod: z.enum(["POS", "TABBY", "BANK_TRANSFER", "CASH", "STRIPE", "COMPLIMENTARY"]),
+  // The actual amount that lands after processor fees/deductions. Not
+  // required for Complimentary (always zero).
+  netReceivedAmount: z.coerce.number().nonnegative().optional(),
+}).superRefine((data, ctx) => {
+  if (data.paymentMethod !== "COMPLIMENTARY" && data.netReceivedAmount === undefined) {
+    ctx.addIssue({ code: "custom", message: "Net amount received is required", path: ["netReceivedAmount"] });
+  }
 });
 
 // POST /api/income/:id/payment — transition an Unpaid record to Paid/Complimentary.
@@ -18,7 +26,7 @@ const markPaidSchema = z.object({
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    if (user.role !== "ADMIN") {
+    if (user.role === "VIEWER") {
       return NextResponse.json({ error: "Viewers cannot record payments" }, { status: 403 });
     }
     const { id } = await params;
@@ -32,6 +40,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!row || row.record.deletedAt) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    // Marking a record Paid is treated as just another edit: a Dispatcher can
+    // only do it for their own record, and only within their active edit
+    // window (same gate as PATCH).
+    if (user.role === "DISPATCHER") {
+      if (row.record.createdById !== user.id) {
+        return NextResponse.json({ error: "You can only record payment on your own records." }, { status: 403 });
+      }
+      const window = await getEditWindowForRecord("INCOME", id, row.record.createdAt);
+      if (!window.editable) {
+        return NextResponse.json(
+          {
+            error: window.pendingRequest
+              ? "This record's edit window has expired. Your request for more time is awaiting admin approval."
+              : "This record's edit window has expired. Request edit access from an admin before marking it paid.",
+          },
+          { status: 403 }
+        );
+      }
     }
     assertDivisionAccess(user, row.divisionCode);
 
@@ -66,6 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       incomeRecordId: id,
       paymentDate: input.paymentDate,
       paymentMethod: input.paymentMethod,
+      netReceivedAmount: isComplimentary ? "0.00" : input.netReceivedAmount!.toFixed(2),
       recordedById: user.id,
     });
 

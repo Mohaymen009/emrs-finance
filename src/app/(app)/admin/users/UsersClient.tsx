@@ -8,7 +8,7 @@ type UserRow = {
   id: string;
   username: string;
   fullName: string;
-  role: "ADMIN" | "VIEWER";
+  role: "ADMIN" | "VIEWER" | "DISPATCHER";
   isActive: boolean;
   divisionCodes: string[];
   lastLoginAt: string | null;
@@ -39,7 +39,7 @@ export default function UsersClient({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"ADMIN" | "VIEWER">("VIEWER");
+  const [role, setRole] = useState<"ADMIN" | "VIEWER" | "DISPATCHER">("VIEWER");
   const [divisionCodes, setDivisionCodes] = useState<string[]>([]);
 
   function toggleDivision(code: string) {
@@ -145,8 +145,9 @@ export default function UsersClient({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
             <div>
               <label className="block text-xs font-medium mb-1">Role</label>
-              <select value={role} onChange={(e) => setRole(e.target.value as "ADMIN" | "VIEWER")} className={inputClass}>
+              <select value={role} onChange={(e) => setRole(e.target.value as "ADMIN" | "VIEWER" | "DISPATCHER")} className={inputClass}>
                 <option value="VIEWER">Viewer (read-only)</option>
+                <option value="DISPATCHER">Dispatcher (own income/expenses only)</option>
                 <option value="ADMIN">Admin (full access)</option>
               </select>
             </div>
@@ -188,7 +189,7 @@ export default function UsersClient({
                 <td className="px-2 md:px-3 py-2.5 font-mono text-xs">{u.username}</td>
                 <td className="px-2 md:px-3 py-2.5">{u.fullName}</td>
                 <td className="px-2 md:px-3 py-2.5">
-                  <Badge color={u.role === "ADMIN" ? "blue" : "slate"}>{u.role}</Badge>
+                  <Badge color={u.role === "ADMIN" ? "blue" : u.role === "DISPATCHER" ? "amber" : "slate"}>{u.role}</Badge>
                 </td>
                 <td className="px-2 md:px-3 py-2.5 text-xs">{u.divisionCodes.join(", ") || "—"}</td>
                 <td className="px-2 md:px-3 py-2.5">

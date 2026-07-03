@@ -15,7 +15,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     <ClientDetailClient
       initialClient={JSON.parse(JSON.stringify(result.client))}
       records={JSON.parse(JSON.stringify(result.records))}
-      canEdit={user.role === "ADMIN"}
+      canEdit={user.role !== "VIEWER"}
     />
   );
 }

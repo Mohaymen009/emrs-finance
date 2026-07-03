@@ -22,7 +22,10 @@ type AuditAction =
   | "DIVISION_ACCESS_CHANGED"
   | "CLIENT_CREATED"
   | "CLIENT_UPDATED"
-  | "CLIENT_DELETED";
+  | "CLIENT_DELETED"
+  | "EDIT_ACCESS_REQUESTED"
+  | "EDIT_ACCESS_GRANTED"
+  | "EDIT_ACCESS_DENIED";
 
 /**
  * Append-only audit trail. Every mutating action in the system (financial

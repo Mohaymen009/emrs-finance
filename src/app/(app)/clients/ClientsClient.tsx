@@ -25,6 +25,7 @@ type ClientRow = {
   totalVat: number;
   outstanding: number;
   lastActivity: string | null;
+  lastPayment: string | null;
 };
 
 type SortKey = "recent" | "name" | "billed" | "outstanding";
@@ -145,6 +146,7 @@ export default function ClientsClient({
               <th className="px-2 md:px-3 py-2.5 text-right">Total Billed</th>
               <th className="px-2 md:px-3 py-2.5 text-right">Outstanding</th>
               <th className="px-2 md:px-3 py-2.5">Last Activity</th>
+              <th className="px-2 md:px-3 py-2.5">Last Payment</th>
             </tr>
           </thead>
           <tbody>
@@ -178,11 +180,14 @@ export default function ClientsClient({
                 <td className="px-2 md:px-3 py-2.5 text-slate-500">
                   {r.lastActivity ? new Date(r.lastActivity).toLocaleDateString() : "—"}
                 </td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                  {r.lastPayment ? new Date(r.lastPayment).toLocaleDateString() : "—"}
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-slate-400">
+                <td colSpan={8} className="p-6 text-center text-slate-400">
                   No clients match. Clients appear here automatically when income records include client details
                   {canEdit ? ", or add one with “+ New Client”." : "."}
                 </td>

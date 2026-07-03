@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { and, eq, gte, lte, isNull, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gte, lte, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { incomeRecords, expenseRecords, divisions } from "@/db/schema";
+import { incomeRecords, expenseRecords, divisions, clients, payments } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeExportLog, writeAuditLog } from "@/lib/audit";
 import { exportFiltersSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
+import { formatRefNumber } from "@/lib/refnumber";
 
 // Consistent branded look for every exported report: bold white-on-navy
 // frozen header with autofilter, currency-formatted amount columns, thin
@@ -48,6 +49,9 @@ function styleWorksheet(sheet: ExcelJS.Worksheet, currencyColumnKeys: string[]) 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
+    if (user.role === "DISPATCHER") {
+      return NextResponse.json({ error: "Dispatchers cannot export financial reports." }, { status: 403 });
+    }
     const { searchParams } = new URL(req.url);
     const type = (searchParams.get("type") ?? "INCOME") as "INCOME" | "EXPENSE" | "VAT" | "PROFIT";
 
@@ -79,32 +83,63 @@ export async function GET(req: NextRequest) {
       if (filters.vatOnly) conditions.push(isNotNull(incomeRecords.vatAmount));
 
       const rows = await db
-        .select({ record: incomeRecords, divisionCode: divisions.code })
+        .select({
+          record: incomeRecords,
+          divisionCode: divisions.code,
+          client: clients,
+          payment: payments,
+        })
         .from(incomeRecords)
         .innerJoin(divisions, eq(incomeRecords.divisionId, divisions.id))
-        .where(and(...conditions));
+        .leftJoin(clients, eq(incomeRecords.clientId, clients.id))
+        .leftJoin(payments, eq(payments.incomeRecordId, incomeRecords.id))
+        .where(and(...conditions))
+        .orderBy(asc(incomeRecords.refYear), asc(incomeRecords.refSeq), asc(incomeRecords.date));
       const filtered = rows.filter((r) => allowedDivisionIds.includes(r.record.divisionId));
 
+      // Standard sales ledger layout: gross - discount = net (the taxable
+      // base), VAT on the net, Amount Charged = net + VAT (what's billed to
+      // the client). Net Received is the actual amount that landed after
+      // payment-processor fees, recorded only once paid.
       const sheet = workbook.addWorksheet("Income");
       sheet.columns = [
+        { header: "Ref No", key: "ref", width: 12 },
+        { header: "Service Date", key: "date", width: 14 },
+        { header: "Client", key: "client", width: 24 },
+        { header: "Description", key: "title", width: 30 },
         { header: "Department", key: "division", width: 20 },
-        { header: "Title", key: "title", width: 30 },
-        { header: "Date", key: "date", width: 15 },
-        { header: "Amount", key: "amount", width: 16 },
-        { header: "VAT Amount", key: "vat", width: 16 },
-        { header: "Payment Status", key: "status", width: 16 },
+        { header: "Gross Amount", key: "gross", width: 15 },
+        { header: "Discount", key: "discount", width: 13 },
+        { header: "Net Amount", key: "amount", width: 15 },
+        { header: "VAT Amount", key: "vat", width: 13 },
+        { header: "Amount Charged", key: "charged", width: 16 },
+        { header: "Payment Status", key: "status", width: 15 },
+        { header: "Payment Date", key: "paymentDate", width: 14 },
+        { header: "Payment Method", key: "method", width: 16 },
+        { header: "Net Received", key: "netReceived", width: 15 },
       ];
-      filtered.forEach((r) =>
+      filtered.forEach((r) => {
+        const net = Number(r.record.amount);
+        const discount = Number(r.record.discountAmount ?? 0);
+        const vat = r.record.vatAmount ? Number(r.record.vatAmount) : 0;
         sheet.addRow({
-          division: r.divisionCode,
-          title: r.record.title,
+          ref: formatRefNumber(r.record.refYear, r.record.refSeq),
           date: r.record.date.toISOString().slice(0, 10),
-          amount: Number(r.record.amount),
-          vat: r.record.vatAmount ? Number(r.record.vatAmount) : 0,
+          client: r.client ? r.client.companyName || r.client.name || "" : "",
+          title: r.record.title,
+          division: r.divisionCode,
+          gross: net + discount,
+          discount,
+          amount: net,
+          vat,
+          charged: net + vat,
           status: r.record.paymentStatus,
-        })
-      );
-      styleWorksheet(sheet, ["amount", "vat"]);
+          paymentDate: r.payment ? r.payment.paymentDate.toISOString().slice(0, 10) : "",
+          method: r.payment?.paymentMethod ?? "",
+          netReceived: r.payment?.netReceivedAmount ? Number(r.payment.netReceivedAmount) : "",
+        });
+      });
+      styleWorksheet(sheet, ["gross", "discount", "amount", "vat", "charged", "netReceived"]);
     }
 
     if (type === "EXPENSE" || type === "PROFIT") {
@@ -117,31 +152,43 @@ export async function GET(req: NextRequest) {
         .select({ record: expenseRecords, divisionCode: divisions.code })
         .from(expenseRecords)
         .innerJoin(divisions, eq(expenseRecords.divisionId, divisions.id))
-        .where(and(...conditions));
+        .where(and(...conditions))
+        .orderBy(asc(expenseRecords.refYear), asc(expenseRecords.refSeq), asc(expenseRecords.date));
       const filtered = rows.filter((r) => allowedDivisionIds.includes(r.record.divisionId));
 
+      // Purchase ledger layout: the purchase/service date (when we bought or
+      // received it) and the payment date (when we actually paid) are
+      // separate columns.
       const sheet = workbook.addWorksheet("Expenses");
       sheet.columns = [
-        { header: "Department", key: "division", width: 20 },
+        { header: "Ref No", key: "ref", width: 12 },
+        { header: "Purchase Date", key: "date", width: 14 },
+        { header: "Payment Date", key: "paymentDate", width: 14 },
+        { header: "Supplier", key: "supplier", width: 22 },
         { header: "Description", key: "description", width: 30 },
         { header: "Category", key: "category", width: 20 },
-        { header: "Date", key: "date", width: 15 },
-        { header: "Amount", key: "amount", width: 16 },
-        { header: "VAT Amount", key: "vat", width: 16 },
-        { header: "Supplier", key: "supplier", width: 20 },
+        { header: "Department", key: "division", width: 20 },
+        { header: "Net Amount", key: "amount", width: 15 },
+        { header: "VAT Amount", key: "vat", width: 13 },
+        { header: "Total", key: "total", width: 15 },
       ];
-      filtered.forEach((r) =>
+      filtered.forEach((r) => {
+        const net = Number(r.record.amount);
+        const vat = r.record.vatAmount ? Number(r.record.vatAmount) : 0;
         sheet.addRow({
-          division: r.divisionCode,
+          ref: formatRefNumber(r.record.refYear, r.record.refSeq),
+          date: r.record.date.toISOString().slice(0, 10),
+          paymentDate: r.record.paymentDate ? r.record.paymentDate.toISOString().slice(0, 10) : "",
+          supplier: r.record.supplierName ?? "",
           description: r.record.description,
           category: r.record.category ?? "",
-          date: r.record.date.toISOString().slice(0, 10),
-          amount: Number(r.record.amount),
-          vat: r.record.vatAmount ? Number(r.record.vatAmount) : 0,
-          supplier: r.record.supplierName ?? "",
-        })
-      );
-      styleWorksheet(sheet, ["amount", "vat"]);
+          division: r.divisionCode,
+          amount: net,
+          vat,
+          total: net + vat,
+        });
+      });
+      styleWorksheet(sheet, ["amount", "vat", "total"]);
     }
 
     await writeExportLog({ userId: user.id, exportType: type, filters });
