@@ -1,0 +1,205 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button, Badge, IconSearch } from "@/components/ui";
+import { ClientFormModal, type ClientFormValues } from "./ClientFormModal";
+
+const inputClass =
+  "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+
+type ClientRow = {
+  client: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    companyName: string | null;
+    trnNumber: string | null;
+    address: string | null;
+    notes: string | null;
+    createdAt: string;
+  };
+  recordCount: number;
+  totalBilled: number;
+  totalVat: number;
+  outstanding: number;
+  lastActivity: string | null;
+};
+
+type SortKey = "recent" | "name" | "billed" | "outstanding";
+
+export function clientDisplayName(c: { name: string | null; companyName: string | null }) {
+  return c.companyName || c.name || "Unnamed client";
+}
+
+export default function ClientsClient({
+  initialClients,
+  canEdit,
+}: {
+  initialClients: ClientRow[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("recent");
+  const [onlyOutstanding, setOnlyOutstanding] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const filtered = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const rows = initialClients.filter((r) => {
+      if (onlyOutstanding && r.outstanding <= 0) return false;
+      if (!term) return true;
+      return [r.client.name, r.client.companyName, r.client.phone, r.client.email, r.client.trnNumber]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    });
+    const sorted = [...rows];
+    if (sortKey === "name") {
+      sorted.sort((a, b) => clientDisplayName(a.client).localeCompare(clientDisplayName(b.client)));
+    } else if (sortKey === "billed") {
+      sorted.sort((a, b) => b.totalBilled - a.totalBilled);
+    } else if (sortKey === "outstanding") {
+      sorted.sort((a, b) => b.outstanding - a.outstanding);
+    }
+    // "recent" keeps the server order (newest first).
+    return sorted;
+  }, [initialClients, searchTerm, sortKey, onlyOutstanding]);
+
+  const totals = useMemo(
+    () => ({
+      billed: filtered.reduce((s, r) => s + r.totalBilled, 0),
+      outstanding: filtered.reduce((s, r) => s + r.outstanding, 0),
+    }),
+    [filtered]
+  );
+
+  async function createClient(values: ClientFormValues): Promise<string | null> {
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    const data = await res.json();
+    if (!res.ok) return data.error ?? "Failed to create client";
+    setShowCreate(false);
+    router.refresh();
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Clients</h1>
+        {canEdit && (
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
+            + New Client
+          </Button>
+        )}
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-2">
+        <div className="relative flex-1">
+          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search name, company, phone, email, TRN..."
+            className={`${inputClass} pl-9`}
+          />
+        </div>
+        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className={`${inputClass} md:w-56`}>
+          <option value="recent">Recently added</option>
+          <option value="name">Name (A–Z)</option>
+          <option value="billed">Highest total billed</option>
+          <option value="outstanding">Highest outstanding</option>
+        </select>
+        <label className="flex items-center gap-2 text-sm text-slate-600 md:w-48 px-1">
+          <input type="checkbox" checked={onlyOutstanding} onChange={(e) => setOnlyOutstanding(e.target.checked)} />
+          With outstanding only
+        </label>
+      </div>
+
+      <div className="flex items-center justify-between text-sm text-slate-500 px-1">
+        <span>
+          {filtered.length} client{filtered.length === 1 ? "" : "s"}
+        </span>
+        <span>
+          Billed: <span className="font-medium text-slate-700">{totals.billed.toFixed(2)} AED</span>
+          <span className="mx-2 text-slate-300">|</span>
+          Outstanding: <span className="font-medium text-amber-700">{totals.outstanding.toFixed(2)} AED</span>
+        </span>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-2 md:px-3 py-2.5">Client</th>
+              <th className="px-2 md:px-3 py-2.5">Contact</th>
+              <th className="px-2 md:px-3 py-2.5">TRN</th>
+              <th className="px-2 md:px-3 py-2.5 text-right">Records</th>
+              <th className="px-2 md:px-3 py-2.5 text-right">Total Billed</th>
+              <th className="px-2 md:px-3 py-2.5 text-right">Outstanding</th>
+              <th className="px-2 md:px-3 py-2.5">Last Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr
+                key={r.client.id}
+                onClick={() => router.push(`/clients/${r.client.id}`)}
+                className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
+              >
+                <td className="px-2 md:px-3 py-2.5">
+                  <span className="font-medium text-slate-800">{clientDisplayName(r.client)}</span>
+                  {r.client.companyName && r.client.name && (
+                    <span className="block text-xs text-slate-400">{r.client.name}</span>
+                  )}
+                </td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-600">
+                  {r.client.phone && <span className="block">{r.client.phone}</span>}
+                  {r.client.email && <span className="block text-xs text-slate-400">{r.client.email}</span>}
+                  {!r.client.phone && !r.client.email && <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-2 md:px-3 py-2.5 font-mono text-xs text-slate-500">{r.client.trnNumber ?? "—"}</td>
+                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">{r.recordCount}</td>
+                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{r.totalBilled.toFixed(2)} AED</td>
+                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">
+                  {r.outstanding > 0 ? (
+                    <Badge color="amber">{r.outstanding.toFixed(2)} AED</Badge>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                  {r.lastActivity ? new Date(r.lastActivity).toLocaleDateString() : "—"}
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-6 text-center text-slate-400">
+                  No clients match. Clients appear here automatically when income records include client details
+                  {canEdit ? ", or add one with “+ New Client”." : "."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {showCreate && (
+        <ClientFormModal
+          title="New Client"
+          submitLabel="Create Client"
+          onSubmit={createClient}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+    </div>
+  );
+}

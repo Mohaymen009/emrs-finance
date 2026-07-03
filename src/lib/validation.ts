@@ -84,6 +84,33 @@ export const updateExpenseSchema = z.object({
   notes: z.string().trim().optional(),
 });
 
+// Standalone client create/edit from the Clients (CRM) pages. Empty strings
+// are normalized to undefined so clearing a field in the edit form stores
+// NULL rather than "". At least one of name/company is required — a client
+// row with no identifying name at all is unusable in every list/lookup.
+const optionalText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
+export const clientUpsertSchema = z
+  .object({
+    name: optionalText,
+    phone: optionalText,
+    email: z.string().trim().email().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+    companyName: optionalText,
+    trnNumber: optionalText,
+    address: optionalText,
+    notes: optionalText,
+  })
+  .refine((data) => data.name || data.companyName, {
+    message: "A client name or company name is required",
+    path: ["name"],
+  });
+
+export type ClientUpsertInput = z.infer<typeof clientUpsertSchema>;
+
 export const loginSchema = z.object({
   username: z.string().trim().min(1),
   password: z.string().min(1),

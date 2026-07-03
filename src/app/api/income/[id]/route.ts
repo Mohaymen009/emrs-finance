@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { incomeRecords, divisions, clients } from "@/db/schema";
+import { incomeRecords, divisions } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
+import { findOrCreateClient } from "@/lib/clients";
 import { writeAuditLog } from "@/lib/audit";
 import { updateIncomeSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
@@ -60,20 +61,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       divisionId = division.id;
     }
 
+    // Identical details reuse the existing client row (see findOrCreateClient)
+    // so edits don't scatter a client's history across duplicate rows.
     let clientId = row.record.clientId;
     if (input.hasClientDetails !== undefined) {
       if (input.hasClientDetails && input.client) {
-        const [client] = await db
-          .insert(clients)
-          .values({
-            name: input.client.name,
-            phone: input.client.phone,
-            email: input.client.email || undefined,
-            companyName: input.client.companyName,
-            trnNumber: input.client.trnNumber,
-          })
-          .returning();
-        clientId = client.id;
+        clientId = await findOrCreateClient(input.client);
       } else {
         clientId = null;
       }

@@ -3,6 +3,7 @@ import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { incomeRecords, divisions, clients, payments, invoices } from "@/db/schema";
 import { requireUser, assertDivisionAccess } from "@/lib/auth";
+import { findOrCreateClient } from "@/lib/clients";
 import { writeAuditLog } from "@/lib/audit";
 import { createIncomeSchema } from "@/lib/validation";
 import { handleApiError, applyComplimentaryRule } from "@/lib/api-helpers";
@@ -105,19 +106,11 @@ export async function POST(req: NextRequest) {
       amount: input.amount,
     });
 
+    // Identical details reuse the existing client row (see findOrCreateClient)
+    // so the Clients page can aggregate a client's full history.
     let clientId: string | null = null;
     if (input.hasClientDetails && input.client) {
-      const [client] = await db
-        .insert(clients)
-        .values({
-          name: input.client.name,
-          phone: input.client.phone,
-          email: input.client.email || undefined,
-          companyName: input.client.companyName,
-          trnNumber: input.client.trnNumber,
-        })
-        .returning();
-      clientId = client.id;
+      clientId = await findOrCreateClient(input.client);
     }
 
     // Human-facing reference number (e.g. 20260001): year + sequence within

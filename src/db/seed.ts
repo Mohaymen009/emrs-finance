@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { db, pool } from "./index";
-import { divisions, users, userDivisionAccess, incomeRecords, expenseRecords } from "./schema";
+import { divisions, users, userDivisionAccess, incomeRecords, expenseRecords, clients } from "./schema";
 import { hashPassword, normalizeUsername } from "../lib/auth";
 import { eq, isNull, isNotNull, asc } from "drizzle-orm";
 
@@ -36,6 +36,44 @@ async function backfillReferenceNumbers() {
     }
     console.log(`Backfilled reference numbers for ${unnumbered.length} row(s) in ${table === incomeRecords ? "income_records" : "expense_records"}.`);
   }
+}
+
+/**
+ * Historically every income record with client details inserted a fresh
+ * clients row, so the same client can exist many times over. The income
+ * routes now reuse an existing row when the details match exactly
+ * (src/lib/clients.ts), and this backfill merges the duplicates that were
+ * already created: income records are repointed at the earliest row with
+ * identical details and the redundant rows are deleted. Idempotent — a
+ * second run finds no duplicates and does nothing.
+ */
+async function mergeDuplicateClients() {
+  const all = await db.select().from(clients).orderBy(asc(clients.createdAt));
+
+  const identity = (c: (typeof all)[number]) =>
+    JSON.stringify(
+      [c.name, c.phone, c.email, c.companyName, c.trnNumber].map((v) => (v ?? "").trim().toLowerCase())
+    );
+
+  const groups = new Map<string, typeof all>();
+  for (const c of all) {
+    const key = identity(c);
+    const group = groups.get(key);
+    if (group) group.push(c);
+    else groups.set(key, [c]);
+  }
+
+  let merged = 0;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const [keeper, ...dupes] = group;
+    for (const dupe of dupes) {
+      await db.update(incomeRecords).set({ clientId: keeper.id }).where(eq(incomeRecords.clientId, dupe.id));
+      await db.delete(clients).where(eq(clients.id, dupe.id));
+      merged++;
+    }
+  }
+  if (merged > 0) console.log(`Merged ${merged} duplicate client row(s).`);
 }
 
 async function main() {
@@ -90,6 +128,9 @@ async function main() {
 
   console.log("Backfilling reference numbers...");
   await backfillReferenceNumbers();
+
+  console.log("Merging duplicate clients...");
+  await mergeDuplicateClients();
 
   console.log("Seed complete.");
 }

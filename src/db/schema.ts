@@ -54,6 +54,8 @@ export const auditActionEnum = pgEnum("audit_action", [
   "USER_DEACTIVATED",
   "USER_DELETED",
   "DIVISION_ACCESS_CHANGED",
+  "CLIENT_CREATED",
+  "CLIENT_UPDATED",
 ]);
 export const exportTypeEnum = pgEnum("export_type", [
   "INCOME",
@@ -120,7 +122,12 @@ export const clients = pgTable("clients", {
   email: text("email"),
   companyName: text("company_name"),
   trnNumber: text("trn_number"),
+  // CRM-only fields, managed from the Clients pages (the income form never
+  // sets these). Nullable so adding them is a safe no-op for existing rows.
+  address: text("address"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,64 @@
+import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { clients } from "@/db/schema";
+import { requireUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
+import { handleApiError } from "@/lib/api-helpers";
+import { clientUpsertSchema } from "@/lib/validation";
+import { getClientWithHistory } from "@/lib/clients";
+
+// GET /api/clients/:id — the client plus their income history, scoped to
+// the caller's divisions like every other read.
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+    const result = await getClientWithHistory(user, id);
+    if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(result);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+// PATCH /api/clients/:id — full-replace semantics: the edit form always
+// sends every field, and a field left empty is stored as NULL (cleared).
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireUser();
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Viewers cannot edit clients" }, { status: 403 });
+    }
+    const { id } = await params;
+    const [existing] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const input = clientUpsertSchema.parse(await req.json());
+    const [updated] = await db
+      .update(clients)
+      .set({
+        name: input.name ?? null,
+        phone: input.phone ?? null,
+        email: input.email ?? null,
+        companyName: input.companyName ?? null,
+        trnNumber: input.trnNumber ?? null,
+        address: input.address ?? null,
+        notes: input.notes ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(clients.id, id))
+      .returning();
+
+    await writeAuditLog({
+      userId: user.id,
+      action: "CLIENT_UPDATED",
+      recordId: id,
+      metadata: { name: updated.name, companyName: updated.companyName },
+    });
+
+    return NextResponse.json({ client: updated });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
