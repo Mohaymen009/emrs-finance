@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -87,6 +88,10 @@ function emptyClientFields(): Record<ClientFieldKey, boolean> {
 }
 function emptyClientValues(): Record<ClientFieldKey, string> {
   return { name: "", phone: "", email: "", companyName: "", trnNumber: "" };
+}
+
+function daysOutstanding(date: string | Date): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000));
 }
 
 function buildHaystack(r: any): string {
@@ -198,6 +203,15 @@ export default function IncomeClient({
     () =>
       filteredRecords.reduce(
         (sum, r) => sum + (r.record.paymentStatus === "COMPLIMENTARY" ? 0 : Number(r.record.amount)),
+        0
+      ),
+    [filteredRecords]
+  );
+
+  const filteredOutstanding = useMemo(
+    () =>
+      filteredRecords.reduce(
+        (sum, r) => sum + (r.record.paymentStatus === "UNPAID" ? Number(r.record.amount) : 0),
         0
       ),
     [filteredRecords]
@@ -476,7 +490,15 @@ export default function IncomeClient({
           {filteredRecords.length} record{filteredRecords.length === 1 ? "" : "s"}
           {dateRange.dateFrom && <> &middot; {dateRange.label}</>}
         </span>
-        <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
+        <span>
+          {filteredOutstanding > 0 && (
+            <>
+              <span className="text-amber-700">Outstanding: {filteredOutstanding.toFixed(2)} AED</span>
+              <span className="mx-2 text-slate-300">|</span>
+            </>
+          )}
+          <span className="font-medium text-slate-700">Total: {filteredTotal.toFixed(2)} AED</span>
+        </span>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
@@ -519,8 +541,25 @@ export default function IncomeClient({
                   >
                     {r.record.paymentStatus}
                   </Badge>
+                  {r.record.paymentStatus === "UNPAID" && daysOutstanding(r.record.date) > 0 && (
+                    <span className="block text-[11px] text-amber-600 mt-0.5">
+                      {daysOutstanding(r.record.date)}d outstanding
+                    </span>
+                  )}
                 </td>
-                <td className="px-2 md:px-3 py-2.5">{r.client ? r.client.name ?? "—" : <span className="text-slate-400">anonymous</span>}</td>
+                <td className="px-2 md:px-3 py-2.5">
+                  {r.client ? (
+                    <Link
+                      href={`/clients/${r.client.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                    >
+                      {r.client.companyName || r.client.name || "View client"}
+                    </Link>
+                  ) : (
+                    <span className="text-slate-400">anonymous</span>
+                  )}
+                </td>
                 <td className="px-2 md:px-3 py-2.5">
                   {canEdit && r.record.paymentStatus === "UNPAID" && (
                     <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setPayingRecord(r); }}>Mark Paid</Button>

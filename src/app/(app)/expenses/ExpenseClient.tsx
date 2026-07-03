@@ -130,21 +130,37 @@ export default function ExpenseClient({
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ label: "All time" });
   const [selected, setSelected] = useState<any | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // Every category that actually appears in the data (presets and custom
+  // "Other" values alike), so the filter always matches what's on screen.
+  const categoryOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const r of initialRecords) {
+      if (r.record.category) seen.add(r.record.category);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [initialRecords]);
 
   const filteredRecords = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return initialRecords.filter((r) => {
       if (filterDivision && r.divisionCode !== filterDivision) return false;
+      if (filterCategory === "__NONE__") {
+        if (r.record.category) return false;
+      } else if (filterCategory && r.record.category !== filterCategory) {
+        return false;
+      }
       const recordDate = new Date(r.record.date).toISOString().slice(0, 10);
       if (dateRange.dateFrom && recordDate < dateRange.dateFrom) return false;
       if (dateRange.dateTo && recordDate > dateRange.dateTo) return false;
       if (!term) return true;
       return buildHaystack(r).includes(term);
     });
-  }, [initialRecords, filterDivision, searchTerm, dateRange]);
+  }, [initialRecords, filterDivision, filterCategory, searchTerm, dateRange]);
 
   const filteredTotal = useMemo(
     () => filteredRecords.reduce((sum, r) => sum + Number(r.record.amount), 0),
@@ -326,6 +342,13 @@ export default function ExpenseClient({
           {divisions.map((d) => (
             <option key={d.code} value={d.code}>{d.name}</option>
           ))}
+        </select>
+        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={`${inputClass} md:w-52`}>
+          <option value="">All categories</option>
+          {categoryOptions.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+          <option value="__NONE__">Uncategorised</option>
         </select>
       </div>
 
