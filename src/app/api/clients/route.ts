@@ -9,9 +9,18 @@ import { listClientsWithStats } from "@/lib/clients";
 
 // GET /api/clients — every client with income aggregates (count, billed,
 // outstanding, last activity), restricted to the caller's divisions.
+// Dispatchers never get this: for that role, client data is only ever
+// surfaced in response to a specific name/phone query — see
+// GET /api/clients/search-verified.
 export async function GET() {
   try {
     const user = await requireUser();
+    if (user.role === "DISPATCHER") {
+      return NextResponse.json(
+        { error: "Search by client name or phone number to look up a client." },
+        { status: 403 }
+      );
+    }
     const rows = await listClientsWithStats(user);
     return NextResponse.json({ clients: rows });
   } catch (err) {

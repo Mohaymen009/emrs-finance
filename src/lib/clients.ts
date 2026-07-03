@@ -110,6 +110,97 @@ export async function listClientsWithStats(user: SessionUser): Promise<ClientLis
   }));
 }
 
+// ---------------------------------------------------------------------------
+// DISPATCHER "VERIFIED SEARCH" — client data is only ever surfaced to a
+// Dispatcher in response to a specific name/phone query (see
+// src/app/api/clients/search-verified/route.ts); there is no "browse
+// everyone" view for that role, unlike Admin/Viewer's full list above.
+// ---------------------------------------------------------------------------
+
+/** Digits only — strips spaces, dashes, parens, and any "+" prefix. */
+function normalizePhoneDigits(v: string): string {
+  return v.replace(/\D/g, "");
+}
+
+/**
+ * True if two phone numbers are "the same number" regardless of how the
+ * country/trunk prefix was written — e.g. "055 123 1234" vs
+ * "+971 55 123 1234" both reduce to the same trailing 9 digits. Requires at
+ * least 7 digits of genuine overlap so short fragments can't false-match.
+ */
+export function phoneNumbersMatch(a: string, b: string): boolean {
+  const da = normalizePhoneDigits(a);
+  const db_ = normalizePhoneDigits(b);
+  if (!da || !db_) return false;
+  const len = Math.min(da.length, db_.length, 9);
+  if (len < 7) return false;
+  return da.slice(-len) === db_.slice(-len);
+}
+
+function bigrams(s: string): string[] {
+  const clean = s.toLowerCase().trim().replace(/\s+/g, " ");
+  if (clean.length < 2) return clean ? [clean] : [];
+  const grams: string[] = [];
+  for (let i = 0; i < clean.length - 1; i++) grams.push(clean.slice(i, i + 2));
+  return grams;
+}
+
+/**
+ * What fraction of the typed query is found in the target string — 1.0 if
+ * the query appears verbatim (e.g. a first name typed against a much longer
+ * company name), otherwise a bigram-overlap ratio that also tolerates minor
+ * typos/reordering. Directional on purpose: a short query against a long
+ * target should still score well if fully contained, which a plain
+ * symmetric similarity score would unfairly penalize.
+ */
+export function queryMatchRatio(query: string, target: string): number {
+  const q = query.toLowerCase().trim();
+  const t = target.toLowerCase();
+  if (!q) return 0;
+  if (t.includes(q)) return 1;
+
+  const qGrams = bigrams(q);
+  if (qGrams.length === 0) return 0;
+  const tGrams = new Set(bigrams(t));
+  let found = 0;
+  for (const g of qGrams) if (tGrams.has(g)) found++;
+  return found / qGrams.length;
+}
+
+const NAME_MATCH_THRESHOLD = 0.5;
+
+/**
+ * The only way a Dispatcher can retrieve client data: requires a genuine
+ * name/company query (>=2 chars) or phone query (>=7 significant digits),
+ * matches phone numbers exactly regardless of formatting, and matches
+ * name/company by requiring at least 50% of the typed text to be found in
+ * the record. Returns [] (never throws) if neither input clears its bar, so
+ * callers must treat an empty query as "no results", not "list everything".
+ */
+export async function searchClientsForDispatcher(
+  user: SessionUser,
+  query: { name?: string; phone?: string }
+): Promise<ClientListRow[]> {
+  const name = query.name?.trim() ?? "";
+  const phoneDigits = query.phone ? normalizePhoneDigits(query.phone) : "";
+  const hasNameQuery = name.length >= 2;
+  const hasPhoneQuery = phoneDigits.length >= 7;
+  if (!hasNameQuery && !hasPhoneQuery) return [];
+
+  const all = await listClientsWithStats(user);
+  return all.filter((row) => {
+    if (hasPhoneQuery && row.client.phone && phoneNumbersMatch(row.client.phone, query.phone!)) {
+      return true;
+    }
+    if (hasNameQuery) {
+      const nameScore = row.client.name ? queryMatchRatio(name, row.client.name) : 0;
+      const companyScore = row.client.companyName ? queryMatchRatio(name, row.client.companyName) : 0;
+      if (Math.max(nameScore, companyScore) >= NAME_MATCH_THRESHOLD) return true;
+    }
+    return false;
+  });
+}
+
 /**
  * A single client plus their income history (division-scoped like every
  * other read in the system). Returns null when the client doesn't exist.

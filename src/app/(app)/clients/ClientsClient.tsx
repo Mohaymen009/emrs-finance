@@ -34,12 +34,197 @@ export function clientDisplayName(c: { name: string | null; companyName: string 
   return c.companyName || c.name || "Unnamed client";
 }
 
+/** Shared result table for both the full Admin/Viewer list and a Dispatcher's search results. */
+function ClientsTable({ rows, emptyMessage }: { rows: ClientRow[]; emptyMessage: string }) {
+  const router = useRouter();
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-2 md:px-3 py-2.5">Client</th>
+            <th className="px-2 md:px-3 py-2.5">Contact</th>
+            <th className="px-2 md:px-3 py-2.5">TRN</th>
+            <th className="px-2 md:px-3 py-2.5 text-right">Records</th>
+            <th className="px-2 md:px-3 py-2.5 text-right">Total Billed</th>
+            <th className="px-2 md:px-3 py-2.5 text-right">Outstanding</th>
+            <th className="px-2 md:px-3 py-2.5">Last Activity</th>
+            <th className="px-2 md:px-3 py-2.5">Last Payment</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr
+              key={r.client.id}
+              onClick={() => router.push(`/clients/${r.client.id}`)}
+              className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
+            >
+              <td className="px-2 md:px-3 py-2.5">
+                <span className="font-medium text-slate-800">{clientDisplayName(r.client)}</span>
+                {r.client.companyName && r.client.name && (
+                  <span className="block text-xs text-slate-400">{r.client.name}</span>
+                )}
+              </td>
+              <td className="px-2 md:px-3 py-2.5 text-slate-600">
+                {r.client.phone && <span className="block">{r.client.phone}</span>}
+                {r.client.email && <span className="block text-xs text-slate-400">{r.client.email}</span>}
+                {!r.client.phone && !r.client.email && <span className="text-slate-300">—</span>}
+              </td>
+              <td className="px-2 md:px-3 py-2.5 font-mono text-xs text-slate-500">{r.client.trnNumber ?? "—"}</td>
+              <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">{r.recordCount}</td>
+              <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{r.totalBilled.toFixed(2)} AED</td>
+              <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">
+                {r.outstanding > 0 ? (
+                  <Badge color="amber">{r.outstanding.toFixed(2)} AED</Badge>
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )}
+              </td>
+              <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                {r.lastActivity ? new Date(r.lastActivity).toLocaleDateString() : "—"}
+              </td>
+              <td className="px-2 md:px-3 py-2.5 text-slate-500">
+                {r.lastPayment ? new Date(r.lastPayment).toLocaleDateString() : "—"}
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={8} className="p-6 text-center text-slate-400">
+                {emptyMessage}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Dispatcher-only mode: no default listing at all — client data is only
+ * ever fetched after a real name/phone query (see
+ * GET /api/clients/search-verified), so nothing is loaded, browsable, or
+ * embedded in the page until the dispatcher actually searches.
+ */
+function DispatcherClientSearch({ canEdit }: { canEdit: boolean }) {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [results, setResults] = useState<ClientRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const hasValidQuery = name.trim().length >= 2 || phone.replace(/\D/g, "").length >= 7;
+
+  async function search(e: React.FormEvent) {
+    e.preventDefault();
+    if (!hasValidQuery) {
+      setError("Enter a client name/company (2+ characters) or a phone number to search.");
+      setResults(null);
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (name.trim()) params.set("name", name.trim());
+      if (phone.trim()) params.set("phone", phone.trim());
+      const res = await fetch(`/api/clients/search-verified?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Search failed");
+        setResults(null);
+        return;
+      }
+      setResults(data.clients ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createClient(values: ClientFormValues): Promise<string | null> {
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    const data = await res.json();
+    if (!res.ok) return data.error ?? "Failed to create client";
+    setShowCreate(false);
+    router.refresh();
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Clients</h1>
+        {canEdit && (
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
+            + New Client
+          </Button>
+        )}
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+        <p className="text-sm font-medium mb-1">Look up a client</p>
+        <p className="text-xs text-slate-400 mb-3">
+          For security, client details are only shown after a search — enter a name/company or phone number.
+        </p>
+        <form onSubmit={search} className="flex flex-col md:flex-row gap-2">
+          <div className="relative flex-1">
+            <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Client name or company"
+              className={`${inputClass} pl-9`}
+            />
+          </div>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Phone number"
+            className={`${inputClass} md:w-56`}
+          />
+          <Button type="submit" disabled={loading}>
+            {loading ? "Searching..." : "Search"}
+          </Button>
+        </form>
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+      </div>
+
+      {results !== null && (
+        <>
+          <p className="text-sm text-slate-500 px-1">
+            {results.length} client{results.length === 1 ? "" : "s"} found
+          </p>
+          <ClientsTable rows={results} emptyMessage="No clients match that name or phone number." />
+        </>
+      )}
+
+      {showCreate && (
+        <ClientFormModal
+          title="New Client"
+          submitLabel="Create Client"
+          onSubmit={createClient}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function ClientsClient({
   initialClients,
   canEdit,
+  restrictedSearch = false,
 }: {
   initialClients: ClientRow[];
   canEdit: boolean;
+  restrictedSearch?: boolean;
 }) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,6 +276,10 @@ export default function ClientsClient({
     return null;
   }
 
+  if (restrictedSearch) {
+    return <DispatcherClientSearch canEdit={canEdit} />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -135,67 +324,10 @@ export default function ClientsClient({
         </span>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-2 md:px-3 py-2.5">Client</th>
-              <th className="px-2 md:px-3 py-2.5">Contact</th>
-              <th className="px-2 md:px-3 py-2.5">TRN</th>
-              <th className="px-2 md:px-3 py-2.5 text-right">Records</th>
-              <th className="px-2 md:px-3 py-2.5 text-right">Total Billed</th>
-              <th className="px-2 md:px-3 py-2.5 text-right">Outstanding</th>
-              <th className="px-2 md:px-3 py-2.5">Last Activity</th>
-              <th className="px-2 md:px-3 py-2.5">Last Payment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => (
-              <tr
-                key={r.client.id}
-                onClick={() => router.push(`/clients/${r.client.id}`)}
-                className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
-              >
-                <td className="px-2 md:px-3 py-2.5">
-                  <span className="font-medium text-slate-800">{clientDisplayName(r.client)}</span>
-                  {r.client.companyName && r.client.name && (
-                    <span className="block text-xs text-slate-400">{r.client.name}</span>
-                  )}
-                </td>
-                <td className="px-2 md:px-3 py-2.5 text-slate-600">
-                  {r.client.phone && <span className="block">{r.client.phone}</span>}
-                  {r.client.email && <span className="block text-xs text-slate-400">{r.client.email}</span>}
-                  {!r.client.phone && !r.client.email && <span className="text-slate-300">—</span>}
-                </td>
-                <td className="px-2 md:px-3 py-2.5 font-mono text-xs text-slate-500">{r.client.trnNumber ?? "—"}</td>
-                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">{r.recordCount}</td>
-                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{r.totalBilled.toFixed(2)} AED</td>
-                <td className="px-2 md:px-3 py-2.5 text-right tabular-nums">
-                  {r.outstanding > 0 ? (
-                    <Badge color="amber">{r.outstanding.toFixed(2)} AED</Badge>
-                  ) : (
-                    <span className="text-slate-400">—</span>
-                  )}
-                </td>
-                <td className="px-2 md:px-3 py-2.5 text-slate-500">
-                  {r.lastActivity ? new Date(r.lastActivity).toLocaleDateString() : "—"}
-                </td>
-                <td className="px-2 md:px-3 py-2.5 text-slate-500">
-                  {r.lastPayment ? new Date(r.lastPayment).toLocaleDateString() : "—"}
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={8} className="p-6 text-center text-slate-400">
-                  No clients match. Clients appear here automatically when income records include client details
-                  {canEdit ? ", or add one with “+ New Client”." : "."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ClientsTable
+        rows={filtered}
+        emptyMessage={`No clients match. Clients appear here automatically when income records include client details${canEdit ? ", or add one with “+ New Client”." : "."}`}
+      />
 
       {showCreate && (
         <ClientFormModal
