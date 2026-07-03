@@ -104,8 +104,8 @@ export default function Nav({ user, pendingEditRequests = 0 }: { user: SessionUs
       {/* Desktop: fixed dark sidebar */}
       <aside className="hidden md:flex fixed inset-y-0 left-0 z-40 w-60 flex-col bg-gray-950/[0.97] backdrop-blur border-r border-white/[0.06]">
         <div className="flex items-center gap-2.5 px-5 h-16 border-b border-white/[0.06]">
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 text-white text-sm font-bold shadow-[0_2px_8px_rgb(37_99_235/0.4)]">
-            E
+          <span className="flex items-center justify-center w-8 h-8 shrink-0 rounded-lg bg-white p-1">
+            <img src="/logo.webp" alt="EMRS Star of Life" className="w-full h-full object-contain" />
           </span>
           <span className="leading-tight">
             <span className="block text-sm font-semibold text-white tracking-tight">EMRS Finance</span>
@@ -155,9 +155,7 @@ export default function Nav({ user, pendingEditRequests = 0 }: { user: SessionUs
       <header className="md:hidden border-b border-gray-200 bg-white/90 backdrop-blur sticky top-0 z-40">
         <div className="px-4 h-14 flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 text-white text-xs font-bold">
-              E
-            </span>
+            <img src="/logo.webp" alt="EMRS Star of Life" className="w-7 h-7 object-contain" />
             <span className="font-semibold text-sm tracking-tight">EMRS Finance</span>
           </span>
           <button

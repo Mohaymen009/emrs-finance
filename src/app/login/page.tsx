@@ -38,12 +38,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,rgb(37_99_235/0.06),transparent_55%)]">
+    <div className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-sm animate-page-enter">
         <div className="flex justify-center mb-6">
-          <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white text-lg font-bold shadow-[0_4px_14px_rgb(37_99_235/0.35)]">
-            E
-          </span>
+          <img src="/logo.webp" alt="EMRS Star of Life" className="w-14 h-14 object-contain" />
         </div>
         <div className="bg-white border border-gray-200/80 rounded-2xl shadow-pop p-8">
           <h1 className="text-xl font-semibold tracking-tight mb-1">Welcome back</h1>

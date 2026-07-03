@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { InvoiceForm } from "@/components/InvoiceForm";
 import { InvoiceTemplate } from "@/components/InvoiceTemplate";
@@ -17,11 +17,8 @@ import { StatementHistory } from "@/components/StatementHistory";
 import { InvoiceData, SavedInvoice, QuotationData, SavedQuotation, ReceiptData, SavedReceipt, StatementData, SavedStatement } from "@/types/invoice";
 import { saveInvoice, saveQuotation, saveReceipt, saveStatement } from "@/utils/storage";
 import { EMRS_COMPANY_DEFAULTS } from "@/utils/companyDefaults";
-import { FileText, Download, History, Eye, Receipt, PenLine, ClipboardList } from "lucide-react";
+import { FileText, Download, History, Eye, Receipt, PenLine, ClipboardList, PencilRuler } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/toaster";
 import { toast } from "@/hooks/use-toast";
 
@@ -165,12 +162,52 @@ const PDF_OPT = {
   jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
 };
 
+type DocType = "invoice" | "quotation" | "receipt" | "statement";
+
+const DOC_TABS: { id: DocType; label: string; shortLabel: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "invoice", label: "Invoice", shortLabel: "Invoice", icon: FileText },
+  { id: "quotation", label: "Quotation", shortLabel: "Quote", icon: FileText },
+  { id: "receipt", label: "Receipt", shortLabel: "Receipt", icon: Receipt },
+  { id: "statement", label: "Statement", shortLabel: "SOA", icon: ClipboardList },
+];
+
+// The A4 templates render at a fixed 210mm (~794px). The preview panes are
+// narrower than that, so this frame measures its own width and zooms the
+// document to fit — `zoom` scales layout too, unlike `transform`, which used
+// to leave a page-sized block of dead scroll space under the preview.
+function DocumentPreview({ children }: { children: React.ReactNode }) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(0.6);
+
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const fit = () => {
+      const width = el.clientWidth;
+      if (width > 0) setZoom(Math.min(1, width / 800));
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={frameRef}>
+      <div className="w-fit mx-auto bg-white ring-1 ring-gray-200 shadow-pop" style={{ zoom }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function InvoiceToolClient() {
   const [formData, setFormData] = useState<InvoiceData>(getInitialData);
   const [quotationData, setQuotationData] = useState<QuotationData>(getInitialQuotationData);
   const [receiptData, setReceiptData] = useState<ReceiptData>(getInitialReceiptData);
   const [statementData, setStatementData] = useState<StatementData>(getInitialStatementData);
-  const [activeTab, setActiveTab] = useState("create");
+  const [docTab, setDocTab] = useState<DocType>("invoice");
+  const [view, setView] = useState<"editor" | "history">("editor");
   const [showDocumentSigner, setShowDocumentSigner] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
   const quotationRef = useRef<HTMLDivElement>(null);
@@ -251,7 +288,8 @@ export default function InvoiceToolClient() {
 
   const handleLoadInvoice = (savedInvoice: SavedInvoice) => {
     setFormData(savedInvoice.data);
-    setActiveTab("create");
+    setDocTab("invoice");
+    setView("editor");
     toast({ title: "Invoice Loaded", description: `Invoice ${savedInvoice.data.clientName || "draft"} has been loaded for editing.` });
   };
 
@@ -284,46 +322,91 @@ export default function InvoiceToolClient() {
 
   const handleLoadQuotation = (savedQuotation: SavedQuotation) => {
     setQuotationData(savedQuotation.data);
-    setActiveTab("quotation");
+    setDocTab("quotation");
+    setView("editor");
     toast({ title: "Quotation Loaded", description: `Quotation ${savedQuotation.data.clientName || "draft"} has been loaded for editing.` });
   };
 
   const handleDownloadQuotationFromHistory = async (savedQuotation: SavedQuotation) => {
     setQuotationData(savedQuotation.data);
-    setActiveTab("quotation");
+    setDocTab("quotation");
+    setView("editor");
     setTimeout(() => { void handleQuotationDownload(); }, 300);
   };
 
   const handleLoadReceipt = (savedReceipt: SavedReceipt) => {
     setReceiptData(savedReceipt.data);
-    setActiveTab("receipt");
+    setDocTab("receipt");
+    setView("editor");
     toast({ title: "Receipt Loaded", description: `Receipt ${savedReceipt.data.clientName || "draft"} has been loaded for editing.` });
   };
 
   const handleDownloadReceiptFromHistory = async (savedReceipt: SavedReceipt) => {
     setReceiptData(savedReceipt.data);
-    setActiveTab("receipt");
+    setDocTab("receipt");
+    setView("editor");
     setTimeout(() => { void handleReceiptDownload(); }, 300);
   };
 
   const handleLoadStatement = (savedStatement: SavedStatement) => {
     setStatementData(savedStatement.data);
-    setActiveTab("statement");
+    setDocTab("statement");
+    setView("editor");
     toast({ title: "Statement Loaded", description: `Statement ${savedStatement.data.clientName || "draft"} has been loaded for editing.` });
   };
 
   const handleDownloadStatementFromHistory = async (savedStatement: SavedStatement) => {
     setStatementData(savedStatement.data);
-    setActiveTab("statement");
+    setDocTab("statement");
+    setView("editor");
     setTimeout(() => { void handleStatementDownload(); }, 300);
   };
 
   const getActiveDownloadHandler = () => {
-    switch (activeTab) {
+    switch (docTab) {
       case "quotation": return handleQuotationDownload;
       case "receipt": return handleReceiptDownload;
       case "statement": return handleStatementDownload;
       default: return handleDownload;
+    }
+  };
+
+  const renderForm = () => {
+    switch (docTab) {
+      case "quotation":
+        return <QuotationForm formData={quotationData} onChange={setQuotationData} onDownload={handleQuotationDownload} />;
+      case "receipt":
+        return <ReceiptForm formData={receiptData} onChange={setReceiptData} onDownload={handleReceiptDownload} />;
+      case "statement":
+        return <StatementForm formData={statementData} onChange={setStatementData} onDownload={handleStatementDownload} />;
+      default:
+        return <InvoiceForm formData={formData} onChange={setFormData} onDownload={handleDownload} />;
+    }
+  };
+
+  const renderTemplate = () => {
+    switch (docTab) {
+      case "quotation":
+        return <QuotationTemplate data={quotationData} />;
+      case "receipt":
+        return <ReceiptTemplate data={receiptData} />;
+      case "statement":
+        return <StatementTemplate data={statementData} />;
+      default:
+        return <InvoiceTemplate data={formData} />;
+    }
+  };
+
+  const renderHistory = () => {
+    switch (docTab) {
+      case "quotation":
+        return <QuotationHistory onLoadQuotation={handleLoadQuotation} onDownloadQuotation={handleDownloadQuotationFromHistory} />;
+      case "receipt":
+        return <ReceiptHistory onLoadReceipt={handleLoadReceipt} onDownloadReceipt={handleDownloadReceiptFromHistory} />;
+      case "statement":
+        return <StatementHistory onLoadStatement={handleLoadStatement} onDownloadStatement={handleDownloadStatementFromHistory} />;
+      default:
+        return <InvoiceHistory onLoadInvoice={handleLoadInvoice} onDownloadInvoice={handleDownloadInvoiceFromHistory} />;
     }
   };
 
@@ -336,27 +419,28 @@ export default function InvoiceToolClient() {
     );
   }
 
+  const docName = docTab;
+
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-md">
-            <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Invoice Tool</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-              Generate invoices, quotations, receipts and statements of account
-            </p>
-          </div>
+    // On desktop the workspace claims the full viewport (minus the layout's
+    // vertical padding) and never scrolls itself — the form and preview panes
+    // each get their own single scroll context instead of stacking page,
+    // form and preview scrollbars on top of each other.
+    <div className="flex flex-col lg:h-[calc(100vh-3.5rem)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">Invoice Tool</h1>
+          <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
+            Generate invoices, quotations, receipts and statements of account
+          </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" onClick={() => setShowDocumentSigner(true)} className="gap-2 hover:bg-accent transition-colors">
+          <Button variant="outline" onClick={() => setShowDocumentSigner(true)} className="gap-2">
             <PenLine className="h-4 w-4" />
-            <span className="hidden sm:inline">Sign & Stamp</span>
+            <span className="hidden sm:inline">Sign &amp; Stamp</span>
             <span className="sm:hidden">Sign</span>
           </Button>
-          <Button onClick={() => getActiveDownloadHandler()()} className="gap-2 flex-1 sm:flex-initial shadow-md hover:shadow-lg transition-shadow">
+          <Button onClick={() => getActiveDownloadHandler()()} className="gap-2 flex-1 sm:flex-initial">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Download PDF</span>
             <span className="sm:hidden">Download</span>
@@ -364,322 +448,107 @@ export default function InvoiceToolClient() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-8 h-12 p-1 bg-muted/60 rounded-xl">
-          <TabsTrigger value="create" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Invoice</span>
-            <span className="sm:hidden">Inv</span>
-          </TabsTrigger>
-          <TabsTrigger value="quotation" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Quotation</span>
-            <span className="sm:hidden">Quote</span>
-          </TabsTrigger>
-          <TabsTrigger value="receipt" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <Receipt className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Receipt</span>
-            <span className="sm:hidden">Rec</span>
-          </TabsTrigger>
-          <TabsTrigger value="statement" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <ClipboardList className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">SOA</span>
-            <span className="sm:hidden">SOA</span>
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <History className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Inv Hist</span>
-            <span className="sm:hidden">Inv H</span>
-          </TabsTrigger>
-          <TabsTrigger value="quotation-history" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <History className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Quote Hist</span>
-            <span className="sm:hidden">Q H</span>
-          </TabsTrigger>
-          <TabsTrigger value="receipt-history" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <History className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Rec Hist</span>
-            <span className="sm:hidden">R H</span>
-          </TabsTrigger>
-          <TabsTrigger value="statement-history" className="flex items-center gap-1 text-xs sm:text-sm rounded-lg data-[state=active]:shadow-md transition-all">
-            <History className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">SOA Hist</span>
-            <span className="sm:hidden">S H</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="create" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Invoice Details</h2>
-                <p className="text-sm text-muted-foreground">Fill in the details below. Preview updates in real-time.</p>
-              </div>
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <InvoiceForm formData={formData} onChange={setFormData} onDownload={handleDownload} />
-              </ScrollArea>
-            </div>
-
-            <div className="hidden lg:block lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Live Preview</h2>
-                <p className="text-sm text-muted-foreground">Preview your invoice as you type.</p>
-              </div>
-              <Card className="overflow-hidden border-2 border-border/50 shadow-lg rounded-xl">
-                <ScrollArea className="h-[calc(100vh-280px)] scrollbar-thin">
-                  <div className="p-6 bg-gradient-to-b from-muted/40 to-muted/20">
-                    <div className="shadow-2xl rounded-lg overflow-hidden" style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%" }}>
-                      <InvoiceTemplate data={formData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-
-            <div className="lg:hidden">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => document.getElementById("mobile-preview")?.scrollIntoView({ behavior: "smooth" })}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-card">
+          {DOC_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = docTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setDocTab(tab.id)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+                  active ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                }`}
               >
-                <Eye className="h-4 w-4 mr-2" /> View Preview
-              </Button>
-            </div>
+                <Icon className="h-3.5 w-3.5 hidden sm:block" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.shortLabel}</span>
+              </button>
+            );
+          })}
+        </div>
 
-            <div id="mobile-preview" className="lg:hidden col-span-1 mt-6">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Invoice Preview</h2>
-                <p className="text-sm text-muted-foreground">This is how your invoice will look.</p>
+        <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-card">
+          <button
+            onClick={() => setView("editor")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+              view === "editor" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <PencilRuler className="h-3.5 w-3.5" />
+            Editor
+          </button>
+          <button
+            onClick={() => setView("history")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+              view === "history" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <History className="h-3.5 w-3.5" />
+            History
+          </button>
+        </div>
+      </div>
+
+      {view === "editor" ? (
+        <div className="mt-4 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <section className="flex flex-col min-h-0">
+            <div className="shrink-0 pb-3">
+              <h2 className="text-sm font-semibold text-gray-900 capitalize">{docName} details</h2>
+              <p className="text-xs text-gray-500">Changes appear in the preview as you type.</p>
+            </div>
+            <div className="flex-1 min-h-0 lg:overflow-y-auto scrollbar-thin lg:pr-2 lg:pb-4">
+              {renderForm()}
+              <div className="lg:hidden mt-4">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => document.getElementById("mobile-preview")?.scrollIntoView({ behavior: "smooth" })}
+                >
+                  <Eye className="h-4 w-4 mr-2" /> View Preview
+                </Button>
               </div>
-              <Card className="overflow-hidden">
-                <ScrollArea className="h-[400px]">
-                  <div className="p-4 bg-muted/30">
-                    <div style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "285%" }}>
-                      <InvoiceTemplate ref={invoiceRef} data={formData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
             </div>
+          </section>
 
-            <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
-              <InvoiceTemplate ref={invoiceRef} data={formData} />
+          <section className="hidden lg:flex flex-col min-h-0">
+            <div className="shrink-0 pb-3">
+              <h2 className="text-sm font-semibold text-gray-900">Live preview</h2>
+              <p className="text-xs text-gray-500">Exactly what the downloaded PDF will look like.</p>
             </div>
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin rounded-2xl border border-gray-200 bg-gray-100/80 p-5">
+              <DocumentPreview>{renderTemplate()}</DocumentPreview>
+            </div>
+          </section>
+
+          <section id="mobile-preview" className="lg:hidden">
+            <div className="pb-3">
+              <h2 className="text-sm font-semibold text-gray-900 capitalize">{docName} preview</h2>
+              <p className="text-xs text-gray-500">This is how your {docName} will look.</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-gray-100/80 p-3">
+              <DocumentPreview>{renderTemplate()}</DocumentPreview>
+            </div>
+          </section>
+        </div>
+      ) : (
+        <div className="mt-4 flex-1 min-h-0 lg:overflow-y-auto scrollbar-thin lg:pr-2">
+          <div className="pb-3">
+            <h2 className="text-sm font-semibold text-gray-900 capitalize">Saved {docName}s</h2>
+            <p className="text-xs text-gray-500">Load a previous {docName} to edit it, or download it again.</p>
           </div>
-        </TabsContent>
+          {renderHistory()}
+        </div>
+      )}
 
-        <TabsContent value="quotation" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Quotation Details</h2>
-                <p className="text-sm text-muted-foreground">Fill in the details below. Preview updates in real-time.</p>
-              </div>
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <QuotationForm formData={quotationData} onChange={setQuotationData} onDownload={handleQuotationDownload} />
-              </ScrollArea>
-            </div>
-
-            <div className="hidden lg:block lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Live Preview</h2>
-                <p className="text-sm text-muted-foreground">Preview your quotation as you type.</p>
-              </div>
-              <Card className="overflow-hidden">
-                <ScrollArea className="h-[calc(100vh-280px)]">
-                  <div className="p-4 bg-muted/30">
-                    <div style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%" }}>
-                      <QuotationTemplate data={quotationData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-
-            <div className="lg:hidden">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => document.getElementById("quotation-mobile-preview")?.scrollIntoView({ behavior: "smooth" })}
-              >
-                <Eye className="h-4 w-4 mr-2" /> View Preview
-              </Button>
-            </div>
-
-            <div id="quotation-mobile-preview" className="lg:hidden col-span-1 mt-6">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Quotation Preview</h2>
-                <p className="text-sm text-muted-foreground">This is how your quotation will look.</p>
-              </div>
-              <Card className="overflow-hidden">
-                <ScrollArea className="h-[400px]">
-                  <div className="p-4 bg-muted/30">
-                    <div style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "285%" }}>
-                      <QuotationTemplate ref={quotationRef} data={quotationData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-
-            <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
-              <QuotationTemplate ref={quotationRef} data={quotationData} />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="receipt" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Receipt Details</h2>
-                <p className="text-sm text-muted-foreground">Fill in the details below. Preview updates in real-time.</p>
-              </div>
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <ReceiptForm formData={receiptData} onChange={setReceiptData} onDownload={handleReceiptDownload} />
-              </ScrollArea>
-            </div>
-
-            <div className="hidden lg:block lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Live Preview</h2>
-                <p className="text-sm text-muted-foreground">Preview your receipt as you type.</p>
-              </div>
-              <Card className="overflow-hidden border-2 border-border/50 shadow-lg rounded-xl">
-                <ScrollArea className="h-[calc(100vh-280px)] scrollbar-thin">
-                  <div className="p-6 bg-gradient-to-b from-muted/40 to-muted/20">
-                    <div className="shadow-2xl rounded-lg overflow-hidden" style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%" }}>
-                      <ReceiptTemplate data={receiptData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-
-            <div className="lg:hidden">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => document.getElementById("receipt-mobile-preview")?.scrollIntoView({ behavior: "smooth" })}
-              >
-                <Eye className="h-4 w-4 mr-2" /> View Preview
-              </Button>
-            </div>
-
-            <div id="receipt-mobile-preview" className="lg:hidden col-span-1 mt-6">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Receipt Preview</h2>
-                <p className="text-sm text-muted-foreground">This is how your receipt will look.</p>
-              </div>
-              <Card className="overflow-hidden">
-                <ScrollArea className="h-[400px]">
-                  <div className="p-4 bg-muted/30">
-                    <div style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "285%" }}>
-                      <ReceiptTemplate ref={receiptRef} data={receiptData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-
-            <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
-              <ReceiptTemplate ref={receiptRef} data={receiptData} />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-6">
-          <div>
-            <div className="mb-4">
-              <h2 className="text-lg font-medium text-foreground mb-1">Previously Downloaded Invoices</h2>
-              <p className="text-sm text-muted-foreground">View and load your previously created invoices for editing.</p>
-            </div>
-            <InvoiceHistory onLoadInvoice={handleLoadInvoice} onDownloadInvoice={handleDownloadInvoiceFromHistory} />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="quotation-history" className="space-y-6">
-          <div>
-            <div className="mb-4">
-              <h2 className="text-lg font-medium text-foreground mb-1">Previously Downloaded Quotations</h2>
-              <p className="text-sm text-muted-foreground">View and load your previously created quotations for editing.</p>
-            </div>
-            <QuotationHistory onLoadQuotation={handleLoadQuotation} onDownloadQuotation={handleDownloadQuotationFromHistory} />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="receipt-history" className="space-y-6">
-          <div>
-            <div className="mb-4">
-              <h2 className="text-lg font-medium text-foreground mb-1">Previously Downloaded Receipts</h2>
-              <p className="text-sm text-muted-foreground">View and load your previously created receipts for editing.</p>
-            </div>
-            <ReceiptHistory onLoadReceipt={handleLoadReceipt} onDownloadReceipt={handleDownloadReceiptFromHistory} />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="statement" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Statement of Account</h2>
-                <p className="text-sm text-muted-foreground">Fill in the details below. Preview updates in real-time.</p>
-              </div>
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <StatementForm formData={statementData} onChange={setStatementData} onDownload={handleStatementDownload} />
-              </ScrollArea>
-            </div>
-            <div className="hidden lg:block lg:col-span-1">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Live Preview</h2>
-                <p className="text-sm text-muted-foreground">Preview your statement as you type.</p>
-              </div>
-              <Card className="overflow-hidden border-2 border-border/50 shadow-lg rounded-xl">
-                <ScrollArea className="h-[calc(100vh-280px)] scrollbar-thin">
-                  <div className="p-6 bg-gradient-to-b from-muted/40 to-muted/20">
-                    <div className="shadow-2xl rounded-lg overflow-hidden" style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%" }}>
-                      <StatementTemplate data={statementData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-            <div className="lg:hidden">
-              <Button variant="outline" className="w-full" onClick={() => document.getElementById("statement-mobile-preview")?.scrollIntoView({ behavior: "smooth" })}>
-                <Eye className="h-4 w-4 mr-2" /> View Preview
-              </Button>
-            </div>
-            <div id="statement-mobile-preview" className="lg:hidden col-span-1 mt-6">
-              <div className="mb-4">
-                <h2 className="text-lg font-medium text-foreground mb-1">Statement Preview</h2>
-                <p className="text-sm text-muted-foreground">This is how your statement will look.</p>
-              </div>
-              <Card className="overflow-hidden">
-                <ScrollArea className="h-[400px]">
-                  <div className="p-4 bg-muted/30">
-                    <div style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "285%" }}>
-                      <StatementTemplate ref={statementRef} data={statementData} />
-                    </div>
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-            <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
-              <StatementTemplate ref={statementRef} data={statementData} />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="statement-history" className="space-y-6">
-          <div>
-            <div className="mb-4">
-              <h2 className="text-lg font-medium text-foreground mb-1">Previously Downloaded Statements</h2>
-              <p className="text-sm text-muted-foreground">View and load your previously created statements for editing.</p>
-            </div>
-            <StatementHistory onLoadStatement={handleLoadStatement} onDownloadStatement={handleDownloadStatementFromHistory} />
-          </div>
-        </TabsContent>
-      </Tabs>
+      {/* Off-screen, unscaled copy of the active document that html2pdf captures. */}
+      <div aria-hidden style={{ position: "absolute", left: "-9999px", top: 0 }}>
+        {docTab === "invoice" && <InvoiceTemplate ref={invoiceRef} data={formData} />}
+        {docTab === "quotation" && <QuotationTemplate ref={quotationRef} data={quotationData} />}
+        {docTab === "receipt" && <ReceiptTemplate ref={receiptRef} data={receiptData} />}
+        {docTab === "statement" && <StatementTemplate ref={statementRef} data={statementData} />}
+      </div>
 
       <Toaster />
     </div>
