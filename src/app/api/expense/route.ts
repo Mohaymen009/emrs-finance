@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     const raw = {
       divisionCode: form.get("divisionCode"),
       description: form.get("description"),
+      category: form.get("category"),
       amount: form.get("amount"),
       date: form.get("date"),
       supplierName: form.get("supplierName") || undefined,
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
         refSeq,
         divisionId: division.id,
         description: input.description,
+        category: input.category,
         amount: input.amount.toFixed(2),
         date: input.date,
         supplierName: input.supplierName,

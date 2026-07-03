@@ -56,6 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (input.description !== undefined) updates.description = input.description;
+    if (input.category !== undefined) updates.category = input.category;
     if (input.date !== undefined) updates.date = input.date;
     if (input.amount !== undefined) updates.amount = input.amount.toFixed(2);
     if (input.supplierName !== undefined) updates.supplierName = input.supplierName;

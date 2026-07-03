@@ -14,15 +14,72 @@ import {
 import { DateRangeFilter, type DateRange } from "@/components/DateRangeFilter";
 import { ExportDialog } from "@/components/ExportDialog";
 import { formatRefNumber } from "@/lib/refnumber";
+import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 
 type Division = { code: string; name: string };
 
 const inputClass =
   "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
 
+const VAT_RATE = 0.05;
+
+// 5% of the entered net amount, as a fixed 2dp string — the starting point
+// for the VAT field, which stays editable in case a receipt shows a
+// different figure.
+function autoVat(amount: string): string {
+  const n = Number(amount);
+  return amount && !Number.isNaN(n) ? (n * VAT_RATE).toFixed(2) : "";
+}
+
+/** Renders the category preset dropdown + "Other" free-text fallback. */
+function CategoryField({
+  category,
+  setCategory,
+  customCategory,
+  setCustomCategory,
+  idSuffix = "",
+}: {
+  category: string;
+  setCategory: (v: string) => void;
+  customCategory: string;
+  setCustomCategory: (v: string) => void;
+  idSuffix?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium mb-1">
+        Category <span className="text-red-500">*</span>
+      </label>
+      <select
+        id={`expense-category${idSuffix}`}
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+        required
+        className={inputClass}
+      >
+        <option value="" disabled>Select a category…</option>
+        {EXPENSE_CATEGORIES.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+        <option value="OTHER">Other (specify)</option>
+      </select>
+      {category === "OTHER" && (
+        <input
+          value={customCategory}
+          onChange={(e) => setCustomCategory(e.target.value)}
+          placeholder="Enter custom category"
+          required
+          className={`${inputClass} mt-2 animate-fade-slide-in`}
+        />
+      )}
+    </div>
+  );
+}
+
 function buildHaystack(r: any): string {
   return [
     r.record.description,
+    r.record.category,
     r.divisionName,
     r.record.supplierName,
     r.record.notes,
@@ -52,12 +109,24 @@ export default function ExpenseClient({
 
   const [divisionCode, setDivisionCode] = useState(divisions[0]?.code ?? "AMBULANCE");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatAmount, setVatAmount] = useState("");
   const [notes, setNotes] = useState("");
+
+  function onAmountChange(v: string) {
+    setAmount(v);
+    if (vatEnabled) setVatAmount(autoVat(v));
+  }
+  function onVatEnabledChange(checked: boolean) {
+    setVatEnabled(checked);
+    if (checked) setVatAmount(autoVat(amount));
+  }
+  const totalCharged = Number(amount || 0) + Number(vatAmount || 0);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
@@ -98,6 +167,7 @@ export default function ExpenseClient({
       const form = new FormData();
       form.set("divisionCode", divisionCode);
       form.set("description", description);
+      form.set("category", category === "OTHER" ? customCategory : category);
       form.set("date", date);
       form.set("amount", amount);
       form.set("supplierName", supplierName);
@@ -115,7 +185,11 @@ export default function ExpenseClient({
       }
       setShowForm(false);
       setDescription("");
+      setCategory("");
+      setCustomCategory("");
       setAmount("");
+      setVatEnabled(false);
+      setVatAmount("");
       if (fileRef.current) fileRef.current.value = "";
       router.refresh();
     } finally {
@@ -163,19 +237,27 @@ export default function ExpenseClient({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1">
-              Expense Description <span className="text-red-500">*</span>
-            </label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} required className={inputClass} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium mb-1">
+                Expense Description <span className="text-red-500">*</span>
+              </label>
+              <input value={description} onChange={(e) => setDescription(e.target.value)} required className={inputClass} />
+            </div>
+            <CategoryField
+              category={category}
+              setCategory={setCategory}
+              customCategory={customCategory}
+              setCustomCategory={setCustomCategory}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
             <div>
               <label className="block text-xs font-medium mb-1">
-                Amount (AED) <span className="text-red-500">*</span>
+                Net Amount (AED) <span className="text-red-500">*</span>
               </label>
-              <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required className={inputClass} />
+              <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => onAmountChange(e.target.value)} required className={inputClass} />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Supplier (optional)</label>
@@ -183,19 +265,26 @@ export default function ExpenseClient({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 border-t border-slate-100 pt-4">
-            <input type="checkbox" checked={vatEnabled} onChange={(e) => setVatEnabled(e.target.checked)} id="vat-exp" />
-            <label htmlFor="vat-exp" className="text-sm">Enable VAT</label>
+          <div className="border-t border-slate-100 pt-4">
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat-exp" />
+              <label htmlFor="vat-exp" className="text-sm">Enable VAT (auto 5%)</label>
+              {vatEnabled && (
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="VAT amount"
+                  value={vatAmount}
+                  onChange={(e) => setVatAmount(e.target.value)}
+                  className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow"
+                />
+              )}
+            </div>
             {vatEnabled && (
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="VAT amount"
-                value={vatAmount}
-                onChange={(e) => setVatAmount(e.target.value)}
-                className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow"
-              />
+              <p className="text-xs text-slate-500 mt-1.5">
+                Total charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+              </p>
             )}
           </div>
 
@@ -257,6 +346,7 @@ export default function ExpenseClient({
               <th className="px-2 md:px-3 py-2.5">Ref #</th>
               <th className="px-2 md:px-3 py-2.5">Department</th>
               <th className="px-2 md:px-3 py-2.5">Description</th>
+              <th className="px-2 md:px-3 py-2.5">Category</th>
               <th className="px-2 md:px-3 py-2.5">Date</th>
               <th className="px-2 md:px-3 py-2.5 text-right">Amount</th>
               <th className="px-2 md:px-3 py-2.5">Supplier</th>
@@ -273,6 +363,7 @@ export default function ExpenseClient({
                 <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refYear, r.record.refSeq)}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.description}</td>
+                <td className="px-2 md:px-3 py-2.5">{r.record.category ?? "—"}</td>
                 <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
                 <td className="px-2 md:px-3 py-2.5 text-right tabular-nums font-medium">{Number(r.record.amount).toFixed(2)} AED</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.supplierName ?? "—"}</td>
@@ -286,7 +377,7 @@ export default function ExpenseClient({
               </tr>
             ))}
             {filteredRecords.length === 0 && (
-              <tr><td colSpan={7} className="p-6 text-center text-slate-400">No expense records match.</td></tr>
+              <tr><td colSpan={8} className="p-6 text-center text-slate-400">No expense records match.</td></tr>
             )}
           </tbody>
         </table>
@@ -341,12 +432,25 @@ function ExpenseDetailModal({
 
   const [divisionCode, setDivisionCode] = useState(row.divisionCode);
   const [description, setDescription] = useState(record.description);
+  const isPreset = record.category ? (EXPENSE_CATEGORIES as readonly string[]).includes(record.category) : false;
+  const [category, setCategory] = useState(isPreset ? record.category : record.category ? "OTHER" : "");
+  const [customCategory, setCustomCategory] = useState(isPreset ? "" : record.category ?? "");
   const [date, setDate] = useState(new Date(record.date).toISOString().slice(0, 10));
   const [amount, setAmount] = useState(String(record.amount));
   const [supplierName, setSupplierName] = useState(record.supplierName ?? "");
   const [vatEnabled, setVatEnabled] = useState(record.vatEnabled);
   const [vatAmount, setVatAmount] = useState(record.vatAmount ? String(record.vatAmount) : "");
   const [notes, setNotes] = useState(record.notes ?? "");
+
+  function onAmountChange(v: string) {
+    setAmount(v);
+    if (vatEnabled) setVatAmount(autoVat(v));
+  }
+  function onVatEnabledChange(checked: boolean) {
+    setVatEnabled(checked);
+    if (checked) setVatAmount(autoVat(amount));
+  }
+  const totalCharged = Number(amount || 0) + Number(vatAmount || 0);
 
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault();
@@ -359,6 +463,7 @@ function ExpenseDetailModal({
         body: JSON.stringify({
           divisionCode,
           description,
+          category: category === "OTHER" ? customCategory : category,
           date,
           amount: Number(amount || 0),
           supplierName: supplierName || undefined,
@@ -416,9 +521,16 @@ function ExpenseDetailModal({
               <DetailRow label="Department" value={row.divisionName} />
               <DetailRow label="Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow label="Description" value={record.description} full />
-              <DetailRow label="Amount" value={`${Number(record.amount).toFixed(2)} AED`} />
+              {record.category && <DetailRow label="Category" value={record.category} />}
+              <DetailRow label={record.vatEnabled ? "Net Amount" : "Amount"} value={`${Number(record.amount).toFixed(2)} AED`} />
               {record.supplierName && <DetailRow label="Supplier" value={record.supplierName} />}
-              {record.vatEnabled && <DetailRow label="VAT" value={`${Number(record.vatAmount ?? 0).toFixed(2)} AED`} />}
+              {record.vatEnabled && <DetailRow label="VAT (5%)" value={`${Number(record.vatAmount ?? 0).toFixed(2)} AED`} />}
+              {record.vatEnabled && (
+                <DetailRow
+                  label="Total Charged"
+                  value={`${(Number(record.amount) + Number(record.vatAmount ?? 0)).toFixed(2)} AED`}
+                />
+              )}
               {record.notes && <DetailRow label="Notes" value={record.notes} full />}
             </dl>
 
@@ -481,32 +593,48 @@ function ExpenseDetailModal({
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Expense Description</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} required className={inputClass} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1">Expense Description</label>
+                <input value={description} onChange={(e) => setDescription(e.target.value)} required className={inputClass} />
+              </div>
+              <CategoryField
+                category={category}
+                setCategory={setCategory}
+                customCategory={customCategory}
+                setCustomCategory={setCustomCategory}
+                idSuffix="-edit"
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium mb-1">Amount (AED)</label>
-                <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required className={inputClass} />
+                <label className="block text-xs font-medium mb-1">Net Amount (AED)</label>
+                <input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => onAmountChange(e.target.value)} required className={inputClass} />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Supplier</label>
                 <input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className={inputClass} />
               </div>
             </div>
-            <div className="flex items-center gap-2 border-t border-slate-100 pt-4">
-              <input type="checkbox" checked={vatEnabled} onChange={(e) => setVatEnabled(e.target.checked)} id="vat-exp-edit" />
-              <label htmlFor="vat-exp-edit" className="text-sm">Enable VAT</label>
+            <div className="border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat-exp-edit" />
+                <label htmlFor="vat-exp-edit" className="text-sm">Enable VAT (auto 5%)</label>
+                {vatEnabled && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={vatAmount}
+                    onChange={(e) => setVatAmount(e.target.value)}
+                    className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32"
+                  />
+                )}
+              </div>
               {vatEnabled && (
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={vatAmount}
-                  onChange={(e) => setVatAmount(e.target.value)}
-                  className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32"
-                />
+                <p className="text-xs text-slate-500 mt-1.5">
+                  Total charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+                </p>
               )}
             </div>
             <div className="border-t border-slate-100 pt-4">

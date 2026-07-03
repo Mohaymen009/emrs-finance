@@ -61,6 +61,7 @@ export const updateIncomeSchema = z.object({
 export const createExpenseSchema = z.object({
   divisionCode: divisionCodeSchema,
   description: z.string().trim().min(1, "Expense description is required"),
+  category: z.string().trim().min(1, "Category is required"),
   amount: z.coerce.number().positive(),
   date: z.coerce.date(),
   supplierName: z.string().trim().optional(),
@@ -74,6 +75,7 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export const updateExpenseSchema = z.object({
   divisionCode: divisionCodeSchema.optional(),
   description: z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1).optional(),
   date: z.coerce.date().optional(),
   amount: z.coerce.number().positive().optional(),
   supplierName: z.string().trim().optional(),

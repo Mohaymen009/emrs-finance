@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -22,6 +22,55 @@ const PAYMENT_METHODS = ["POS", "TABBY", "BANK_TRANSFER", "CASH", "STRIPE", "COM
 
 const inputClass =
   "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow";
+
+const VAT_RATE = 0.05;
+
+// 5% of the entered net amount, as a fixed 2dp string — the starting point
+// for the VAT field, which stays editable in case an invoice needs a
+// different figure.
+function autoVat(amount: string): string {
+  const n = Number(amount);
+  return amount && !Number.isNaN(n) ? (n * VAT_RATE).toFixed(2) : "";
+}
+
+type ClientMatch = {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  companyName: string | null;
+  trnNumber: string | null;
+};
+
+/**
+ * Looks up existing clients by company/client name (debounced) and, if a
+ * match is found, offers to reuse its saved details instead of retyping
+ * them. Only searches once the typed term is at least 2 characters.
+ */
+function useClientLookup(term: string) {
+  const [matches, setMatches] = useState<ClientMatch[]>([]);
+
+  useEffect(() => {
+    const q = term.trim();
+    const handle = setTimeout(async () => {
+      if (q.length < 2) {
+        setMatches([]);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/clients/search?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setMatches(data.clients ?? []);
+      } catch {
+        // Best-effort suggestion — silently ignore lookup failures.
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [term]);
+
+  return matches;
+}
 
 const CLIENT_FIELDS = [
   { key: "name", label: "Client name" },
@@ -84,9 +133,41 @@ export default function IncomeClient({
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatAmount, setVatAmount] = useState("");
 
+  function onAmountChange(v: string) {
+    setAmount(v);
+    if (vatEnabled) setVatAmount(autoVat(v));
+  }
+  function onVatEnabledChange(checked: boolean) {
+    setVatEnabled(checked);
+    if (checked) setVatAmount(autoVat(amount));
+  }
+  const totalCharged = Number(amount || 0) + Number(vatAmount || 0);
+
   const [includeFields, setIncludeFields] = useState<Record<ClientFieldKey, boolean>>(emptyClientFields());
   const [clientValues, setClientValues] = useState<Record<ClientFieldKey, string>>(emptyClientValues());
   const hasClientDetails = Object.values(includeFields).some(Boolean);
+  const [dismissedClientMatch, setDismissedClientMatch] = useState(false);
+  const clientMatches = useClientLookup(
+    dismissedClientMatch ? "" : clientValues.companyName || clientValues.name
+  );
+
+  function reuseClient(match: ClientMatch) {
+    setIncludeFields({
+      name: !!match.name,
+      phone: !!match.phone,
+      email: !!match.email,
+      companyName: !!match.companyName,
+      trnNumber: !!match.trnNumber,
+    });
+    setClientValues({
+      name: match.name ?? "",
+      phone: match.phone ?? "",
+      email: match.email ?? "",
+      companyName: match.companyName ?? "",
+      trnNumber: match.trnNumber ?? "",
+    });
+    setDismissedClientMatch(true);
+  }
 
   const [notes, setNotes] = useState("");
 
@@ -175,8 +256,11 @@ export default function IncomeClient({
       setShowForm(false);
       setTitle("");
       setAmount("");
+      setVatEnabled(false);
+      setVatAmount("");
       setIncludeFields(emptyClientFields());
       setClientValues(emptyClientValues());
+      setDismissedClientMatch(false);
       if (fileRef.current) fileRef.current.value = "";
       router.refresh();
     } finally {
@@ -235,13 +319,13 @@ export default function IncomeClient({
             {paymentStatus !== "COMPLIMENTARY" ? (
               <div>
                 <label className="block text-xs font-medium mb-1">
-                  Amount (AED) <span className="text-red-500">*</span>
+                  Net Amount Received (AED) <span className="text-red-500">*</span>
                 </label>
-                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required className={inputClass} />
+                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => onAmountChange(e.target.value)} required className={inputClass} />
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-medium mb-1">Amount (AED)</label>
+                <label className="block text-xs font-medium mb-1">Net Amount Received (AED)</label>
                 <div className="w-full border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-sm text-slate-500">
                   Complimentary — recorded at AED 0.00
                 </div>
@@ -270,19 +354,26 @@ export default function IncomeClient({
             </div>
           )}
 
-          <div className="flex items-center gap-2 border-t border-slate-100 pt-4">
-            <input type="checkbox" checked={vatEnabled} onChange={(e) => setVatEnabled(e.target.checked)} id="vat" />
-            <label htmlFor="vat" className="text-sm">Enable VAT</label>
-            {vatEnabled && (
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="VAT amount"
-                value={vatAmount}
-                onChange={(e) => setVatAmount(e.target.value)}
-                className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow"
-              />
+          <div className="border-t border-slate-100 pt-4">
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat" />
+              <label htmlFor="vat" className="text-sm">Enable VAT (auto 5%)</label>
+              {vatEnabled && (
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="VAT amount"
+                  value={vatAmount}
+                  onChange={(e) => setVatAmount(e.target.value)}
+                  className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-shadow"
+                />
+              )}
+            </div>
+            {vatEnabled && paymentStatus !== "COMPLIMENTARY" && (
+              <p className="text-xs text-slate-500 mt-1.5">
+                Amount charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+              </p>
             )}
           </div>
 
@@ -291,6 +382,23 @@ export default function IncomeClient({
             <p className="text-xs text-slate-400 mb-3">
               Choose exactly which client fields to attach to this record — you don&apos;t have to fill them all in.
             </p>
+            {clientMatches.length > 0 && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-3 animate-fade-slide-in space-y-2">
+                <p className="text-xs text-indigo-700">Found existing client{clientMatches.length > 1 ? "s" : ""} with a matching name:</p>
+                {clientMatches.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-slate-700">
+                      {m.companyName || m.name}
+                      {m.companyName && m.name ? <span className="text-slate-400"> — {m.name}</span> : null}
+                    </span>
+                    <Button type="button" variant="secondary" onClick={() => reuseClient(m)}>Use these details</Button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setDismissedClientMatch(true)} className="text-xs text-slate-400 underline">
+                  Dismiss
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {CLIENT_FIELDS.map((f) => (
                 <div key={f.key} className={f.key === "trnNumber" ? "md:col-span-2" : undefined}>
@@ -301,7 +409,10 @@ export default function IncomeClient({
                   {includeFields[f.key] && (
                     <input
                       value={clientValues[f.key]}
-                      onChange={(e) => setClientValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      onChange={(e) => {
+                        setClientValues((prev) => ({ ...prev, [f.key]: e.target.value }));
+                        if (f.key === "name" || f.key === "companyName") setDismissedClientMatch(false);
+                      }}
                       className={`${inputClass} animate-fade-slide-in`}
                       placeholder={f.label}
                     />
@@ -555,6 +666,17 @@ function IncomeDetailModal({
   const [amount, setAmount] = useState(String(record.amount));
   const [vatEnabled, setVatEnabled] = useState(record.vatEnabled);
   const [vatAmount, setVatAmount] = useState(record.vatAmount ? String(record.vatAmount) : "");
+
+  function onAmountChange(v: string) {
+    setAmount(v);
+    if (vatEnabled) setVatAmount(autoVat(v));
+  }
+  function onVatEnabledChange(checked: boolean) {
+    setVatEnabled(checked);
+    if (checked) setVatAmount(autoVat(amount));
+  }
+  const totalCharged = Number(amount || 0) + Number(vatAmount || 0);
+
   const [includeFields, setIncludeFields] = useState<Record<ClientFieldKey, boolean>>({
     name: !!row.client?.name,
     phone: !!row.client?.phone,
@@ -649,11 +771,17 @@ function IncomeDetailModal({
               <DetailRow label="Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow label="Title" value={record.title} full />
               <DetailRow
-                label="Amount"
+                label={record.vatEnabled ? "Net Amount Received" : "Amount"}
                 value={record.paymentStatus === "COMPLIMENTARY" ? "Complimentary — AED 0.00" : `${Number(record.amount).toFixed(2)} AED`}
               />
               <DetailRow label="Status" value={<Badge color={record.paymentStatus === "PAID" ? "green" : record.paymentStatus === "COMPLIMENTARY" ? "blue" : "amber"}>{record.paymentStatus}</Badge>} />
-              {record.vatEnabled && <DetailRow label="VAT" value={`${Number(record.vatAmount ?? 0).toFixed(2)} AED`} />}
+              {record.vatEnabled && <DetailRow label="VAT (5%)" value={`${Number(record.vatAmount ?? 0).toFixed(2)} AED`} />}
+              {record.vatEnabled && record.paymentStatus !== "COMPLIMENTARY" && (
+                <DetailRow
+                  label="Amount Charged"
+                  value={`${(Number(record.amount) + Number(record.vatAmount ?? 0)).toFixed(2)} AED`}
+                />
+              )}
               {row.payment && <DetailRow label="Payment Date" value={new Date(row.payment.paymentDate).toLocaleDateString()} />}
               {row.payment && <DetailRow label="Payment Method" value={row.payment.paymentMethod} />}
               {row.client?.name && <DetailRow label="Client Name" value={row.client.name} />}
@@ -729,25 +857,32 @@ function IncomeDetailModal({
             </div>
             {record.paymentStatus !== "COMPLIMENTARY" && (
               <div>
-                <label className="block text-xs font-medium mb-1">Amount (AED)</label>
-                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required className={inputClass} />
+                <label className="block text-xs font-medium mb-1">Net Amount Received (AED)</label>
+                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => onAmountChange(e.target.value)} required className={inputClass} />
               </div>
             )}
             <p className="text-xs text-slate-400">
               Payment status/method/date can&apos;t be changed here — payment history is permanent once recorded.
             </p>
-            <div className="flex items-center gap-2 border-t border-slate-100 pt-4">
-              <input type="checkbox" checked={vatEnabled} onChange={(e) => setVatEnabled(e.target.checked)} id="vat-edit" />
-              <label htmlFor="vat-edit" className="text-sm">Enable VAT</label>
-              {vatEnabled && (
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={vatAmount}
-                  onChange={(e) => setVatAmount(e.target.value)}
-                  className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32"
-                />
+            <div className="border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={vatEnabled} onChange={(e) => onVatEnabledChange(e.target.checked)} id="vat-edit" />
+                <label htmlFor="vat-edit" className="text-sm">Enable VAT (auto 5%)</label>
+                {vatEnabled && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={vatAmount}
+                    onChange={(e) => setVatAmount(e.target.value)}
+                    className="ml-2 border border-slate-300 rounded-lg px-2 py-1 text-sm w-32"
+                  />
+                )}
+              </div>
+              {vatEnabled && record.paymentStatus !== "COMPLIMENTARY" && (
+                <p className="text-xs text-slate-500 mt-1.5">
+                  Amount charged (incl. VAT): <span className="font-medium text-slate-700">{totalCharged.toFixed(2)} AED</span>
+                </p>
               )}
             </div>
             <div className="border-t border-slate-100 pt-4">

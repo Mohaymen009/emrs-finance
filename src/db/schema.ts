@@ -172,6 +172,10 @@ export const expenseRecords = pgTable(
     refSeq: integer("ref_seq"),
     divisionId: text("division_id").notNull().references(() => divisions.id),
     description: text("description").notNull(),
+    // One of EXPENSE_CATEGORIES (src/lib/expenseCategories.ts) or a free-text
+    // value the user typed under "Other". Nullable so adding this column is a
+    // safe no-op for existing rows (same rationale as refYear/refSeq above).
+    category: text("category"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     date: timestamp("date", { withTimezone: true }).notNull(),
     supplierName: text("supplier_name"),

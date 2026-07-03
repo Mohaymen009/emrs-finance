@@ -124,6 +124,7 @@ export async function GET(req: NextRequest) {
       sheet.columns = [
         { header: "Department", key: "division", width: 20 },
         { header: "Description", key: "description", width: 30 },
+        { header: "Category", key: "category", width: 20 },
         { header: "Date", key: "date", width: 15 },
         { header: "Amount", key: "amount", width: 16 },
         { header: "VAT Amount", key: "vat", width: 16 },
@@ -133,6 +134,7 @@ export async function GET(req: NextRequest) {
         sheet.addRow({
           division: r.divisionCode,
           description: r.record.description,
+          category: r.record.category ?? "",
           date: r.record.date.toISOString().slice(0, 10),
           amount: Number(r.record.amount),
           vat: r.record.vatAmount ? Number(r.record.vatAmount) : 0,
