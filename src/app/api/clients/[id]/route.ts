@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, incomeRecords } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
@@ -79,10 +79,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const [existing] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    // Soft-deleted income records (deletedAt set) no longer count as "attached"
+    // — they're excluded from every other view of a client's history too
+    // (see getClientWithHistory / listClientsWithStats), so a client whose
+    // only records were deleted must be deletable as well.
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(incomeRecords)
-      .where(eq(incomeRecords.clientId, id));
+      .where(and(eq(incomeRecords.clientId, id), isNull(incomeRecords.deletedAt)));
     if (Number(count) > 0) {
       return NextResponse.json(
         {
@@ -91,6 +95,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         { status: 409 }
       );
     }
+
+    // A soft-deleted income record still has its clientId column pointing at
+    // this client (only deletedAt is set), so the foreign key would still
+    // block the delete below even though the record is invisible everywhere
+    // else. Since a soft-deleted record's client link is never shown or used
+    // again, it's safe to sever it here rather than leave the client
+    // permanently undeletable because of history nobody can see anymore.
+    await db.update(incomeRecords).set({ clientId: null }).where(eq(incomeRecords.clientId, id));
 
     await db.delete(clients).where(eq(clients.id, id));
 
