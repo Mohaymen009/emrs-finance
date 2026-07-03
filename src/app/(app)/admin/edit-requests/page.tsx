@@ -36,7 +36,7 @@ export default async function EditRequestsPage() {
           ? (record as typeof incomeRecords.$inferSelect).title
           : (record as typeof expenseRecords.$inferSelect).description
         : "(record deleted)",
-      refNumber: record ? formatRefNumber(record.refYear, record.refSeq) : "—",
+      refNumber: record ? formatRefNumber(record.refNumber, record.refYear, record.refSeq) : "—",
       status: r.status,
       requestedAt: r.requestedAt,
       requestedByName: userById.get(r.requestedById)?.fullName ?? "Unknown",

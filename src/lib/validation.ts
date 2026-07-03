@@ -33,6 +33,9 @@ function validateDiscount(
 export const createIncomeSchema = z
   .object({
     divisionCode: divisionCodeSchema,
+    // User-entered reference number — never auto-generated. Uniqueness
+    // (among non-deleted income records) is checked in the route itself.
+    refNumber: z.string().trim().min(1, "Reference number is required"),
     title: z.string().trim().min(1, "Title / description is required"),
     // Service date — when the service was performed.
     date: z.coerce.date(),
@@ -79,6 +82,7 @@ export type CreateIncomeInput = z.infer<typeof createIncomeSchema>;
 export const updateIncomeSchema = z
   .object({
     divisionCode: divisionCodeSchema.optional(),
+    refNumber: z.string().trim().min(1, "Reference number is required").optional(),
     title: z.string().trim().min(1).optional(),
     date: z.coerce.date().optional(),
     // Gross amount before discount, like createIncomeSchema.
@@ -94,6 +98,9 @@ export const updateIncomeSchema = z
 
 export const createExpenseSchema = z.object({
   divisionCode: divisionCodeSchema,
+  // User-entered reference number — never auto-generated. Uniqueness
+  // (among non-deleted expense records) is checked in the route itself.
+  refNumber: z.string().trim().min(1, "Reference number is required"),
   description: z.string().trim().min(1, "Expense description is required"),
   category: z.string().trim().min(1, "Category is required"),
   amount: z.coerce.number().positive(),
@@ -111,6 +118,7 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
 export const updateExpenseSchema = z.object({
   divisionCode: divisionCodeSchema.optional(),
+  refNumber: z.string().trim().min(1, "Reference number is required").optional(),
   description: z.string().trim().min(1).optional(),
   category: z.string().trim().min(1).optional(),
   date: z.coerce.date().optional(),

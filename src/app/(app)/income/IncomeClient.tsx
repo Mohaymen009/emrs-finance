@@ -244,6 +244,7 @@ export default function IncomeClient({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [divisionCode, setDivisionCode] = useState(divisions[0]?.code ?? "AMBULANCE");
+  const [refNumber, setRefNumber] = useState("");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -308,6 +309,7 @@ export default function IncomeClient({
   }
 
   const [notes, setNotes] = useState("");
+  const [showClientPicker, setShowClientPicker] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
@@ -374,6 +376,7 @@ export default function IncomeClient({
 
       const payload = {
         divisionCode,
+        refNumber,
         title,
         date,
         // amount is the gross figure; the API derives the stored net from
@@ -404,6 +407,7 @@ export default function IncomeClient({
         return;
       }
       setShowForm(false);
+      setRefNumber("");
       setTitle("");
       setAmount("");
       setDiscountType("");
@@ -459,18 +463,27 @@ export default function IncomeClient({
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">
+                Reference Number <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-slate-400 mb-1">Your own invoice/reference number — any format.</p>
+              <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium mb-1">
                 Service Date <span className="text-red-500">*</span>
               </label>
               <p className="text-xs text-slate-400 mb-1">When the service was performed.</p>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1">
-              Title / Description <span className="text-red-500">*</span>
-            </label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
+            <div>
+              <label className="block text-xs font-medium mb-1">
+                Title / Description <span className="text-red-500">*</span>
+              </label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
+            </div>
           </div>
 
           <div className="border-t border-slate-100 pt-4 space-y-4">
@@ -586,7 +599,12 @@ export default function IncomeClient({
           </div>
 
           <div className="border-t border-slate-100 pt-4">
-            <p className="text-sm font-medium mb-2">Client details (optional)</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium">Client details (optional)</p>
+              <Button type="button" variant="secondary" onClick={() => setShowClientPicker(true)}>
+                Select Existing Client
+              </Button>
+            </div>
             <p className="text-xs text-slate-400 mb-3">
               Choose exactly which client fields to attach to this record — you don&apos;t have to fill them all in.
             </p>
@@ -729,7 +747,7 @@ export default function IncomeClient({
                 onClick={() => setSelected(r)}
                 className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
               >
-                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refYear, r.record.refSeq)}</td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.title}</td>
                 <td className="px-2 md:px-3 py-2.5">{new Date(r.record.date).toLocaleDateString()}</td>
@@ -815,7 +833,99 @@ export default function IncomeClient({
       )}
 
       <ExportDialog open={showExportDialog} onClose={() => setShowExportDialog(false)} buildHref={buildExportHref} />
+
+      {showClientPicker && (
+        <ClientPickerModal
+          onClose={() => setShowClientPicker(false)}
+          onSelect={(match) => {
+            reuseClient(match);
+            setShowClientPicker(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Browse-and-pick version of the client lookup: unlike the inline
+ * type-ahead (which only surfaces matches once you're already typing a
+ * name), this lists every client up front so you can reuse one's exact
+ * saved details without retyping anything.
+ */
+function ClientPickerModal({
+  onClose,
+  onSelect,
+}: {
+  onClose: () => void;
+  onSelect: (match: ClientMatch) => void;
+}) {
+  const [clients, setClients] = useState<ClientMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/clients");
+        if (!res.ok) {
+          setError((await res.json()).error ?? "Failed to load clients");
+          return;
+        }
+        const data = await res.json();
+        setClients((data.clients ?? []).map((r: any) => r.client));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return clients;
+    return clients.filter((c) =>
+      [c.name, c.companyName, c.phone, c.email, c.trnNumber].filter(Boolean).join(" ").toLowerCase().includes(term)
+    );
+  }, [clients, search]);
+
+  return (
+    <Modal open onClose={onClose} title="Select Existing Client" maxWidth="max-w-lg">
+      <div className="space-y-3">
+        <input
+          autoFocus
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, company, phone, email, TRN..."
+          className={inputClass}
+        />
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 -mx-1">
+          {loading && <p className="text-sm text-slate-400 px-1 py-4">Loading clients...</p>}
+          {!loading && filtered.length === 0 && (
+            <p className="text-sm text-slate-400 px-1 py-4">No clients match.</p>
+          )}
+          {filtered.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelect(c)}
+              className="w-full text-left px-1 py-2.5 hover:bg-indigo-50/60 rounded-lg transition-colors"
+            >
+              <span className="block text-sm font-medium text-slate-800">
+                {c.companyName || c.name || "Unnamed client"}
+              </span>
+              <span className="block text-xs text-slate-400">
+                {[c.name && c.companyName ? c.name : null, c.phone, c.email].filter(Boolean).join(" · ") || "No contact details saved"}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -955,6 +1065,10 @@ function IncomeDetailModal({
   }
 
   const [divisionCode, setDivisionCode] = useState(row.divisionCode);
+  // Prefilled with whatever's currently displayed (custom or legacy
+  // year+sequence) — saving without touching this field locks that value in
+  // as the record's refNumber going forward.
+  const [refNumber, setRefNumber] = useState(formatRefNumber(record.refNumber, record.refYear, record.refSeq));
   const [title, setTitle] = useState(record.title);
   const [date, setDate] = useState(new Date(record.date).toISOString().slice(0, 10));
   // The form edits the gross figure; the stored amount is the net, so the
@@ -1026,6 +1140,7 @@ function IncomeDetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           divisionCode,
+          refNumber,
           title,
           date,
           // Gross figure — the API derives the stored net from the discount.
@@ -1085,7 +1200,7 @@ function IncomeDetailModal({
         {!editing ? (
           <div className="space-y-5">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <DetailRow label="Reference #" value={formatRefNumber(record.refYear, record.refSeq)} />
+              <DetailRow label="Reference #" value={formatRefNumber(record.refNumber, record.refYear, record.refSeq)} />
               <DetailRow label="Department" value={row.divisionName} />
               <DetailRow label="Service Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow label="Title" value={record.title} full />
@@ -1205,13 +1320,19 @@ function IncomeDetailModal({
                 </select>
               </div>
               <div>
+                <label className="block text-xs font-medium mb-1">Reference Number</label>
+                <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-xs font-medium mb-1">Service Date</label>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Title / Description</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
+              <div>
+                <label className="block text-xs font-medium mb-1">Title / Description</label>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
+              </div>
             </div>
             {record.paymentStatus !== "COMPLIMENTARY" && (
               <AmountWithDiscountFields

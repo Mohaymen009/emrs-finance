@@ -147,10 +147,14 @@ export const incomeRecords = pgTable(
   "income_records",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
-    // Human-facing reference number, e.g. 20260001 (year + sequence within
-    // that year, sequence reset per calendar year). Nullable so adding this
-    // column is a safe no-op migration for existing rows — see the seed.ts
-    // backfill, which assigns numbers to any row missing one.
+    // Human-facing reference number, entered by the user at creation (any
+    // format they like) rather than auto-generated. refYear/refSeq are the
+    // old auto year+sequence system, kept only so records created before
+    // this column existed still display their original number (see
+    // formatRefNumber in src/lib/refnumber.ts, which prefers refNumber and
+    // falls back to refYear/refSeq). Nullable so adding this column is a
+    // safe no-op migration for existing rows.
+    refNumber: text("ref_number"),
     refYear: integer("ref_year"),
     refSeq: integer("ref_seq"),
     divisionId: text("division_id").notNull().references(() => divisions.id),
@@ -194,7 +198,8 @@ export const expenseRecords = pgTable(
   "expense_records",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
-    // See incomeRecords.refYear/refSeq above.
+    // See incomeRecords.refNumber/refYear/refSeq above.
+    refNumber: text("ref_number"),
     refYear: integer("ref_year"),
     refSeq: integer("ref_seq"),
     divisionId: text("division_id").notNull().references(() => divisions.id),

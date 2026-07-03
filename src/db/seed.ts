@@ -2,22 +2,25 @@ import "dotenv/config";
 import { db, pool } from "./index";
 import { divisions, users, userDivisionAccess, incomeRecords, expenseRecords, clients } from "./schema";
 import { hashPassword, normalizeUsername } from "../lib/auth";
-import { eq, isNull, isNotNull, asc } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, asc } from "drizzle-orm";
 
 /**
- * Assigns a reference number (refYear/refSeq) to any income/expense rows
- * that don't have one yet — either brand-new columns on an existing
- * database, or rows created before this feature existed. Numbers are
- * assigned in creation order, continuing from whatever's already been
- * numbered for that year, and this is safe to re-run: rows that already
- * have a number are left untouched.
+ * Assigns a legacy-style reference number (refYear/refSeq) to any
+ * income/expense rows that have neither that nor a refNumber — i.e. rows
+ * created before reference numbers existed at all. Reference numbers are
+ * now entered by the user at creation (see createIncomeSchema/
+ * createExpenseSchema), so a row with refNumber set but no refYear/refSeq is
+ * a normal new-style row, not a legacy one — this must NOT touch those.
+ * Numbers are assigned in creation order, continuing from whatever's
+ * already been numbered for that year, and this is safe to re-run: rows
+ * that already have either kind of number are left untouched.
  */
 async function backfillReferenceNumbers() {
   for (const table of [incomeRecords, expenseRecords] as const) {
     const unnumbered = await db
       .select()
       .from(table)
-      .where(isNull(table.refYear))
+      .where(and(isNull(table.refYear), isNull(table.refNumber)))
       .orderBy(asc(table.createdAt));
     if (unnumbered.length === 0) continue;
 

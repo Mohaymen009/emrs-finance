@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
         .leftJoin(clients, eq(incomeRecords.clientId, clients.id))
         .leftJoin(payments, eq(payments.incomeRecordId, incomeRecords.id))
         .where(and(...conditions))
-        .orderBy(asc(incomeRecords.refYear), asc(incomeRecords.refSeq), asc(incomeRecords.date));
+        .orderBy(asc(incomeRecords.date));
       const filtered = rows.filter((r) => allowedDivisionIds.includes(r.record.divisionId));
 
       // Standard sales ledger layout: gross - discount = net (the taxable
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
         const discount = Number(r.record.discountAmount ?? 0);
         const vat = r.record.vatAmount ? Number(r.record.vatAmount) : 0;
         sheet.addRow({
-          ref: formatRefNumber(r.record.refYear, r.record.refSeq),
+          ref: formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq),
           date: r.record.date.toISOString().slice(0, 10),
           client: r.client ? r.client.companyName || r.client.name || "" : "",
           title: r.record.title,
@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
         .from(expenseRecords)
         .innerJoin(divisions, eq(expenseRecords.divisionId, divisions.id))
         .where(and(...conditions))
-        .orderBy(asc(expenseRecords.refYear), asc(expenseRecords.refSeq), asc(expenseRecords.date));
+        .orderBy(asc(expenseRecords.date));
       const filtered = rows.filter((r) => allowedDivisionIds.includes(r.record.divisionId));
 
       // Purchase ledger layout: the purchase/service date (when we bought or
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
         const net = Number(r.record.amount);
         const vat = r.record.vatAmount ? Number(r.record.vatAmount) : 0;
         sheet.addRow({
-          ref: formatRefNumber(r.record.refYear, r.record.refSeq),
+          ref: formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq),
           date: r.record.date.toISOString().slice(0, 10),
           paymentDate: r.record.paymentDate ? r.record.paymentDate.toISOString().slice(0, 10) : "",
           supplier: r.record.supplierName ?? "",

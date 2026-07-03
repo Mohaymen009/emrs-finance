@@ -7,7 +7,7 @@ import { findOrCreateClient } from "@/lib/clients";
 import { writeAuditLog } from "@/lib/audit";
 import { createIncomeSchema } from "@/lib/validation";
 import { handleApiError, applyComplimentaryRule, applyDiscount } from "@/lib/api-helpers";
-import { nextRefNumber } from "@/lib/refseq";
+import { isRefNumberTaken } from "@/lib/refseq";
 import { assertValidUpload, saveFileToPrivateStorage } from "@/lib/storage";
 
 // GET /api/income?division=AMBULANCE&status=PAID&dateFrom=...&dateTo=...
@@ -104,6 +104,10 @@ export async function POST(req: NextRequest) {
 
     assertDivisionAccess(user, input.divisionCode);
 
+    if (await isRefNumberTaken(incomeRecords, input.refNumber)) {
+      return NextResponse.json({ error: "That reference number is already in use." }, { status: 409 });
+    }
+
     const [division] = await db
       .select()
       .from(divisions)
@@ -140,15 +144,10 @@ export async function POST(req: NextRequest) {
       clientId = await findOrCreateClient(input.client);
     }
 
-    // Human-facing reference number (e.g. 20260001), keyed to the service
-    // date's year — see nextRefNumber.
-    const { refYear, refSeq } = await nextRefNumber(incomeRecords, input.date);
-
     const [record] = await db
       .insert(incomeRecords)
       .values({
-        refYear,
-        refSeq,
+        refNumber: input.refNumber,
         divisionId: division.id,
         title: input.title,
         date: input.date,

@@ -6,7 +6,7 @@ import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { updateExpenseSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
-import { nextRefNumber } from "@/lib/refseq";
+import { isRefNumberTaken } from "@/lib/refseq";
 import { getEditWindowForRecord } from "@/lib/editWindow";
 
 async function loadRecordWithDivision(id: string) {
@@ -68,6 +68,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const input = updateExpenseSchema.parse(await req.json());
 
+    if (input.refNumber !== undefined && (await isRefNumberTaken(expenseRecords, input.refNumber, id))) {
+      return NextResponse.json({ error: "That reference number is already in use." }, { status: 409 });
+    }
+
     let divisionId = row.divisionId;
     if (input.divisionCode) {
       assertDivisionAccess(user, input.divisionCode);
@@ -77,18 +81,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.refNumber !== undefined) updates.refNumber = input.refNumber;
     if (input.description !== undefined) updates.description = input.description;
     if (input.category !== undefined) updates.category = input.category;
-    if (input.date !== undefined) {
-      updates.date = input.date;
-      // Reference numbers are sequential within the purchase date's year — if
-      // the edit moves the record to a different year, renumber it there.
-      if (input.date.getFullYear() !== row.record.refYear) {
-        const { refYear, refSeq } = await nextRefNumber(expenseRecords, input.date);
-        updates.refYear = refYear;
-        updates.refSeq = refSeq;
-      }
-    }
+    if (input.date !== undefined) updates.date = input.date;
     if (input.paymentDate !== undefined) updates.paymentDate = input.paymentDate;
     if (input.amount !== undefined) updates.amount = input.amount.toFixed(2);
     if (input.supplierName !== undefined) updates.supplierName = input.supplierName;

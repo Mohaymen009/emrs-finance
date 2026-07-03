@@ -23,6 +23,7 @@ type Client = {
 type HistoryRow = {
   record: {
     id: string;
+    refNumber: string | null;
     refYear: number | null;
     refSeq: number | null;
     title: string;
@@ -210,7 +211,7 @@ export default function ClientDetailClient({
                 {records.map((r) => (
                   <tr key={r.record.id} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50">
                     <td className="px-3 py-2.5 text-slate-400 font-mono text-xs">
-                      {formatRefNumber(r.record.refYear, r.record.refSeq)}
+                      {formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}
                     </td>
                     <td className="px-3 py-2.5">{r.divisionName}</td>
                     <td className="px-3 py-2.5">{r.record.title}</td>

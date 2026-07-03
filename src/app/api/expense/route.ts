@@ -6,7 +6,7 @@ import { requireUser, assertDivisionAccess } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { createExpenseSchema } from "@/lib/validation";
 import { handleApiError } from "@/lib/api-helpers";
-import { nextRefNumber } from "@/lib/refseq";
+import { isRefNumberTaken } from "@/lib/refseq";
 import { assertValidUpload, saveFileToPrivateStorage } from "@/lib/storage";
 
 export async function GET(req: NextRequest) {
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
 
     const raw = {
       divisionCode: form.get("divisionCode"),
+      refNumber: form.get("refNumber"),
       description: form.get("description"),
       category: form.get("category"),
       amount: form.get("amount"),
@@ -80,6 +81,10 @@ export async function POST(req: NextRequest) {
     const input = createExpenseSchema.parse(raw);
     assertDivisionAccess(user, input.divisionCode);
 
+    if (await isRefNumberTaken(expenseRecords, input.refNumber)) {
+      return NextResponse.json({ error: "That reference number is already in use." }, { status: 409 });
+    }
+
     const [division] = await db
       .select()
       .from(divisions)
@@ -87,14 +92,10 @@ export async function POST(req: NextRequest) {
       .limit(1);
     if (!division) return NextResponse.json({ error: "Unknown division" }, { status: 400 });
 
-    // Reference number keyed to the purchase date's year — see nextRefNumber.
-    const { refYear, refSeq } = await nextRefNumber(expenseRecords, input.date);
-
     const [record] = await db
       .insert(expenseRecords)
       .values({
-        refYear,
-        refSeq,
+        refNumber: input.refNumber,
         divisionId: division.id,
         description: input.description,
         category: input.category,

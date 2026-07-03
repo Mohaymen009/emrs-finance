@@ -131,6 +131,7 @@ export default function ExpenseClient({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [divisionCode, setDivisionCode] = useState(divisions[0]?.code ?? "AMBULANCE");
+  const [refNumber, setRefNumber] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
@@ -165,6 +166,16 @@ export default function ExpenseClient({
     const seen = new Set<string>();
     for (const r of initialRecords) {
       if (r.record.category) seen.add(r.record.category);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [initialRecords]);
+
+  // Every supplier name used before, so typing one you've used previously
+  // offers it as a suggestion instead of retyping it from scratch.
+  const supplierOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const r of initialRecords) {
+      if (r.record.supplierName) seen.add(r.record.supplierName);
     }
     return [...seen].sort((a, b) => a.localeCompare(b));
   }, [initialRecords]);
@@ -206,6 +217,7 @@ export default function ExpenseClient({
     try {
       const form = new FormData();
       form.set("divisionCode", divisionCode);
+      form.set("refNumber", refNumber);
       form.set("description", description);
       form.set("category", category === "OTHER" ? customCategory : category);
       form.set("date", date);
@@ -225,6 +237,7 @@ export default function ExpenseClient({
         return;
       }
       setShowForm(false);
+      setRefNumber("");
       setDescription("");
       setCategory("");
       setCustomCategory("");
@@ -275,6 +288,16 @@ export default function ExpenseClient({
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">
+                Reference Number <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-slate-400 mb-1">Your own invoice/reference number — any format.</p>
+              <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium mb-1">
                 Purchase / Service Date <span className="text-red-500">*</span>
               </label>
               <p className="text-xs text-slate-400 mb-1">When we bought the item or received the service.</p>
@@ -314,7 +337,12 @@ export default function ExpenseClient({
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Supplier (optional)</label>
-              <input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className={inputClass} />
+              <input
+                value={supplierName}
+                onChange={(e) => setSupplierName(e.target.value)}
+                list="supplier-options"
+                className={inputClass}
+              />
             </div>
           </div>
 
@@ -431,7 +459,7 @@ export default function ExpenseClient({
                 onClick={() => setSelected(r)}
                 className="border-t border-slate-100 odd:bg-white even:bg-slate-50/50 hover:bg-indigo-50/60 transition-colors cursor-pointer"
               >
-                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refYear, r.record.refSeq)}</td>
+                <td className="px-2 md:px-3 py-2.5 text-slate-400 font-mono text-xs">{formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.divisionName}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.description}</td>
                 <td className="px-2 md:px-3 py-2.5">{r.record.category ?? "—"}</td>
@@ -477,6 +505,14 @@ export default function ExpenseClient({
       )}
 
       <ExportDialog open={showExportDialog} onClose={() => setShowExportDialog(false)} buildHref={buildExportHref} />
+
+      {/* Shared by both the create form and the edit modal's Supplier field
+          — referenced by id, so it doesn't need to live inside either form. */}
+      <datalist id="supplier-options">
+        {supplierOptions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
     </div>
   );
 }
@@ -527,6 +563,7 @@ function ExpenseDetailModal({
   }
 
   const [divisionCode, setDivisionCode] = useState(row.divisionCode);
+  const [refNumber, setRefNumber] = useState(formatRefNumber(record.refNumber, record.refYear, record.refSeq));
   const [description, setDescription] = useState(record.description);
   const isPreset = record.category ? (EXPENSE_CATEGORIES as readonly string[]).includes(record.category) : false;
   const [category, setCategory] = useState(isPreset ? record.category : record.category ? "OTHER" : "");
@@ -561,6 +598,7 @@ function ExpenseDetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           divisionCode,
+          refNumber,
           description,
           category: category === "OTHER" ? customCategory : category,
           date,
@@ -617,7 +655,7 @@ function ExpenseDetailModal({
         {!editing ? (
           <div className="space-y-5">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <DetailRow label="Reference #" value={formatRefNumber(record.refYear, record.refSeq)} />
+              <DetailRow label="Reference #" value={formatRefNumber(record.refNumber, record.refYear, record.refSeq)} />
               <DetailRow label="Department" value={row.divisionName} />
               <DetailRow label="Purchase / Service Date" value={new Date(record.date).toLocaleDateString()} />
               <DetailRow
@@ -709,6 +747,12 @@ function ExpenseDetailModal({
                 </select>
               </div>
               <div>
+                <label className="block text-xs font-medium mb-1">Reference Number</label>
+                <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-xs font-medium mb-1">Purchase / Service Date</label>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputClass} />
               </div>
@@ -739,7 +783,12 @@ function ExpenseDetailModal({
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Supplier</label>
-                <input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className={inputClass} />
+                <input
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  list="supplier-options"
+                  className={inputClass}
+                />
               </div>
             </div>
             <div className="border-t border-slate-100 pt-4">
