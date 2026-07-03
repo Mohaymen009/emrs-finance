@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const input = updateUserSchema.parse(await req.json());
 
     const willDeactivate = input.isActive === false;
-    const willDemote = input.role === "VIEWER" && target.role === "ADMIN";
+    const willDemote = input.role !== undefined && input.role !== "ADMIN" && target.role === "ADMIN";
 
     if ((willDeactivate || willDemote) && target.id === admin.id) {
       // Count other active admins before allowing this.

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Badge, ConfirmDialog } from "@/components/ui";
+import { Button, Badge, ConfirmDialog, Modal } from "@/components/ui";
 
 type UserRow = {
   id: string;
@@ -41,6 +41,8 @@ export default function UsersClient({
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"ADMIN" | "VIEWER" | "DISPATCHER">("VIEWER");
   const [divisionCodes, setDivisionCodes] = useState<string[]>([]);
+
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
 
   function toggleDivision(code: string) {
     setDivisionCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
@@ -197,6 +199,9 @@ export default function UsersClient({
                 </td>
                 <td className="px-2 md:px-3 py-2.5 text-xs">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "Never"}</td>
                 <td className="px-2 md:px-3 py-2.5 whitespace-nowrap">
+                  <Button variant="ghost" onClick={() => setEditingUser(u)} className="mr-3">
+                    Edit
+                  </Button>
                   <Button variant="ghost" onClick={() => resetPassword(u)} className="mr-3">
                     Reset password
                   </Button>
@@ -228,6 +233,98 @@ export default function UsersClient({
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSaved={() => {
+            setEditingUser(null);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function EditUserModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: UserRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [fullName, setFullName] = useState(user.fullName);
+  const [role, setRole] = useState<"ADMIN" | "VIEWER" | "DISPATCHER">(user.role);
+  const [divisionCodes, setDivisionCodes] = useState<string[]>(user.divisionCodes);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggleDivision(code: string) {
+    setDivisionCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, role, divisionCodes }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error ?? "Failed to save changes");
+        return;
+      }
+      onSaved();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Edit "${user.username}"`} maxWidth="max-w-md">
+      <form onSubmit={save} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium mb-1">Full name</label>
+          <input value={fullName} onChange={(e) => setFullName(e.target.value)} required className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">Role</label>
+          <select value={role} onChange={(e) => setRole(e.target.value as "ADMIN" | "VIEWER" | "DISPATCHER")} className={inputClass}>
+            <option value="VIEWER">Viewer (read-only)</option>
+            <option value="DISPATCHER">Dispatcher (own income/expenses only)</option>
+            <option value="ADMIN">Admin (full access)</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">Department access</label>
+          <div className="flex gap-3 items-center">
+            {DIVISIONS.map((d) => (
+              <label key={d.code} className="flex items-center gap-1 text-sm">
+                <input type="checkbox" checked={divisionCodes.includes(d.code)} onChange={() => toggleDivision(d.code)} />
+                {d.name}
+              </label>
+            ))}
+          </div>
+          {divisionCodes.length === 0 && (
+            <p className="text-xs text-amber-600 mt-1">
+              No departments selected — this user won&apos;t be able to see or create anything until at least one is checked.
+            </p>
+          )}
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
