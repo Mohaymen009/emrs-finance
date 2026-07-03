@@ -85,12 +85,30 @@ updates, step by step.
 - **Expense ledger**: free-text description, division, amount, date,
   supplier, VAT toggle+amount, notes, and a **mandatory** receipt upload —
   the API rejects the request outright if no valid file is attached.
+  Every expense carries a **category** (preset list in
+  `src/lib/expenseCategories.ts` with an "Other" free-text fallback), shown
+  in the table/detail/export and filterable on the Expenses page.
+- **Clients (CRM)**: a Clients page listing every client with record count,
+  total billed, outstanding balance and last activity (searchable, sortable,
+  filterable to clients with outstanding balances), plus a per-client detail
+  page with contact details (incl. address + internal notes), lifetime
+  totals, and the client's full income history. Income create/edit reuse an
+  existing client row when the exact same details are entered instead of
+  inserting a duplicate per record, the income form offers to reuse a
+  matching client's saved details as you type, and the seed step merges
+  duplicate client rows that already exist. Admins can create/edit clients
+  directly; all reads stay division-scoped.
 - **Private file storage**: invoices/receipts are written outside `public/`
   (path-traversal-safe) and can only be retrieved through an authenticated,
   division-scoped API route — there is no public URL for any file.
-- **Dashboards**: per-division totals (income, expenses, net profit, VAT
-  collected, entry count) plus a combined company-wide dashboard visible
-  only to Admins.
+- **Dashboards**: per-division totals (income, expenses, VAT collected,
+  outstanding receivables, entry count) plus a combined company-wide
+  dashboard visible only to Admins, and an **Analytics** section: 12-month
+  income-vs-expenses trend chart, receivables aging buckets
+  (0–30/31–60/61–90/90+ days), collections by payment method, expenses by
+  category, and top clients by revenue — all server-rendered with no
+  charting dependency, division-scoped, and (except the fixed 12-month
+  trend) respecting the dashboard date filter.
 - **Reporting**: Excel (.xlsx) export for Income and Expense (VAT/Profit
   export types combine both), filterable by division/date range/payment
   status/VAT; every export is logged.
@@ -147,7 +165,10 @@ src/lib/rate-limit.ts     Login attempt rate limiting + lockout
 src/lib/audit.ts          Append-only audit/login/export log writers
 src/lib/storage.ts        Private file storage (save/read/delete, path-traversal guarded)
 src/lib/validation.ts     Zod schemas encoding the business rules and account policy
-src/lib/stats.ts          Division dashboard aggregation
+src/lib/stats.ts          Division dashboard aggregation + analytics (trend, aging, breakdowns)
+src/lib/clients.ts        Client dedupe (findOrCreateClient) + CRM list/detail queries
+src/lib/expenseCategories.ts   Preset expense categories offered by the form
+src/components/charts.tsx Server-rendered SVG chart primitives for the dashboard
 src/middleware.ts         CSRF Origin-check guard for mutating API requests
 src/app/api/**            All backend routes (auth, income, expense, files, dashboard, reports, admin users/logs)
 src/app/(app)/**          Authenticated UI (dashboard, income, expenses, admin users, admin logs)
