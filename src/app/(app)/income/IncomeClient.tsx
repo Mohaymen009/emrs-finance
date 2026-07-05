@@ -755,7 +755,18 @@ export default function IncomeClient({
                   {r.payment ? new Date(r.payment.paymentDate).toLocaleDateString() : "—"}
                 </td>
                 <td className="px-3 md:px-4 py-3 text-right tabular-nums font-medium">
-                  {r.record.paymentStatus === "COMPLIMENTARY" ? "Complimentary" : `${Number(r.record.amount).toFixed(2)} AED`}
+                  {r.record.paymentStatus === "COMPLIMENTARY" ? (
+                    "Complimentary"
+                  ) : (
+                    <>
+                      {Number(r.record.amount).toFixed(2)} AED
+                      {Number(r.record.vatAmount || 0) > 0 && (
+                        <span className="block text-[11px] font-normal text-gray-400">
+                          +{Number(r.record.vatAmount).toFixed(2)} VAT · Total {(Number(r.record.amount) + Number(r.record.vatAmount)).toFixed(2)} AED
+                        </span>
+                      )}
+                    </>
+                  )}
                 </td>
                 <td className="px-3 md:px-4 py-3">
                   <Badge

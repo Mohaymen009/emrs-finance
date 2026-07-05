@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Badge, ConfirmDialog, IconEdit } from "@/components/ui";
+import { Button, Badge, ConfirmDialog, IconEdit, Modal } from "@/components/ui";
 import { formatRefNumber } from "@/lib/refnumber";
 import { ClientFormModal, type ClientFormValues } from "../ClientFormModal";
 
@@ -29,11 +29,16 @@ type HistoryRow = {
     title: string;
     date: string;
     amount: string;
+    discountType: string | null;
+    discountValue: string | null;
+    discountAmount: string | null;
+    vatEnabled: boolean;
     vatAmount: string | null;
+    notes: string | null;
     paymentStatus: "UNPAID" | "PAID" | "COMPLIMENTARY";
   };
   divisionName: string;
-  payment: { paymentDate: string; paymentMethod: string } | null;
+  payment: { paymentDate: string; paymentMethod: string; netReceivedAmount: string | null } | null;
 };
 
 function StatCard({ label, value, tone }: { label: string; value: string; tone?: "amber" | "green" }) {
@@ -43,6 +48,23 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone?:
     <div className="bg-white border border-gray-200 rounded-2xl shadow-card p-4">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className={`text-lg font-semibold ${valueClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  full,
+}: {
+  label: string;
+  value: ReactNode;
+  full?: boolean;
+}) {
+  return (
+    <div className={full ? "col-span-2" : undefined}>
+      <dt className="text-xs text-gray-400">{label}</dt>
+      <dd className="text-sm text-gray-800 break-words">{value}</dd>
     </div>
   );
 }
@@ -69,6 +91,7 @@ export default function ClientDetailClient({
   const router = useRouter();
   const client = initialClient;
   const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<HistoryRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -209,7 +232,11 @@ export default function ClientDetailClient({
               </thead>
               <tbody>
                 {records.map((r) => (
-                  <tr key={r.record.id} className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50">
+                  <tr
+                    key={r.record.id}
+                    onClick={() => setSelected(r)}
+                    className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/60 transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3 text-gray-400 font-mono text-xs">
                       {formatRefNumber(r.record.refNumber, r.record.refYear, r.record.refSeq)}
                     </td>
@@ -217,9 +244,19 @@ export default function ClientDetailClient({
                     <td className="px-4 py-3">{r.record.title}</td>
                     <td className="px-4 py-3">{new Date(r.record.date).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium">
-                      {r.record.paymentStatus === "COMPLIMENTARY"
-                        ? "Complimentary"
-                        : `${Number(r.record.amount).toFixed(2)} AED`}
+                      {r.record.paymentStatus === "COMPLIMENTARY" ? (
+                        "Complimentary"
+                      ) : (
+                        <>
+                          {Number(r.record.amount).toFixed(2)} AED
+                          {Number(r.record.vatAmount || 0) > 0 && (
+                            <span className="block text-[11px] font-normal text-gray-400">
+                              +{Number(r.record.vatAmount).toFixed(2)} VAT · Total{" "}
+                              {(Number(r.record.amount) + Number(r.record.vatAmount)).toFixed(2)} AED
+                            </span>
+                          )}
+                        </>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Badge
@@ -251,6 +288,84 @@ export default function ClientDetailClient({
           </div>
         </div>
       </div>
+
+      {selected && (
+        <Modal open onClose={() => setSelected(null)} title="Income Record" maxWidth="max-w-2xl">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <DetailRow
+              label="Reference #"
+              value={formatRefNumber(selected.record.refNumber, selected.record.refYear, selected.record.refSeq)}
+            />
+            <DetailRow label="Department" value={selected.divisionName} />
+            <DetailRow label="Service Date" value={new Date(selected.record.date).toLocaleDateString()} />
+            <DetailRow label="Title" value={selected.record.title} full />
+            {selected.record.discountAmount && Number(selected.record.discountAmount) > 0 ? (
+              <>
+                <DetailRow
+                  label="Amount (before discount)"
+                  value={`${(Number(selected.record.amount) + Number(selected.record.discountAmount)).toFixed(2)} AED`}
+                />
+                <DetailRow
+                  label={
+                    selected.record.discountType === "PERCENT"
+                      ? `Discount (${Number(selected.record.discountValue ?? 0)}%)`
+                      : "Discount"
+                  }
+                  value={`−${Number(selected.record.discountAmount).toFixed(2)} AED`}
+                />
+                <DetailRow label="Net Amount" value={`${Number(selected.record.amount).toFixed(2)} AED`} />
+              </>
+            ) : (
+              <DetailRow
+                label={selected.record.vatEnabled ? "Net Amount" : "Amount"}
+                value={
+                  selected.record.paymentStatus === "COMPLIMENTARY"
+                    ? "Complimentary — AED 0.00"
+                    : `${Number(selected.record.amount).toFixed(2)} AED`
+                }
+              />
+            )}
+            <DetailRow
+              label="Status"
+              value={
+                <Badge
+                  color={
+                    selected.record.paymentStatus === "PAID"
+                      ? "green"
+                      : selected.record.paymentStatus === "COMPLIMENTARY"
+                      ? "blue"
+                      : "amber"
+                  }
+                >
+                  {selected.record.paymentStatus}
+                </Badge>
+              }
+            />
+            {selected.record.vatEnabled && (
+              <DetailRow label="VAT (5%)" value={`${Number(selected.record.vatAmount ?? 0).toFixed(2)} AED`} />
+            )}
+            <DetailRow
+              label="Amount Charged"
+              value={
+                selected.record.paymentStatus === "COMPLIMENTARY"
+                  ? "Complimentary — AED 0.00"
+                  : `${(Number(selected.record.amount) + Number(selected.record.vatAmount ?? 0)).toFixed(2)} AED`
+              }
+            />
+            {selected.payment && (
+              <DetailRow label="Payment Date" value={new Date(selected.payment.paymentDate).toLocaleDateString()} />
+            )}
+            {selected.payment && <DetailRow label="Payment Method" value={selected.payment.paymentMethod} />}
+            {selected.payment && selected.payment.netReceivedAmount !== null && (
+              <DetailRow
+                label="Net Amount Received"
+                value={`${Number(selected.payment.netReceivedAmount).toFixed(2)} AED`}
+              />
+            )}
+            {selected.record.notes && <DetailRow label="Notes" value={selected.record.notes} full />}
+          </dl>
+        </Modal>
+      )}
 
       {editing && (
         <ClientFormModal
