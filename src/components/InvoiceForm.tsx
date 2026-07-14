@@ -31,12 +31,16 @@ export function InvoiceForm({ formData, onChange }: InvoiceFormProps) {
     const subtotal = parseAED(next.subtotal);
     const discount = parseAED(next.discountAmount || "");
     const afterDiscount = Math.max(subtotal - discount, 0);
-    const vatPercent = next.clientType === "individual" ? 0 : parseFloat(next.vatPercent || "0") || 0;
+    const businessVatPercent =
+      next.vatPercent && next.vatPercent !== "0"
+        ? next.vatPercent
+        : "5";
+    const vatPercent = next.clientType === "individual" ? 0 : parseFloat(businessVatPercent) || 0;
     const vatAmount = afterDiscount * (vatPercent / 100);
     const total = afterDiscount + vatAmount;
     return {
       ...next,
-      vatPercent: next.clientType === "individual" ? "0" : (next.vatPercent || "5"),
+      vatPercent: next.clientType === "individual" ? "0" : businessVatPercent,
       vatAmount: formatAED(vatAmount),
       total: formatAED(total),
       amountDue: formatAED(total),
