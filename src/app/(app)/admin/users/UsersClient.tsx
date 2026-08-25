@@ -44,6 +44,7 @@ export default function UsersClient({
   const [divisionCodes, setDivisionCodes] = useState<string[]>([]);
 
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [activityUser, setActivityUser] = useState<UserRow | null>(null);
 
   function toggleDivision(code: string) {
     setDivisionCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
@@ -193,7 +194,14 @@ export default function UsersClient({
             {initialUsers.map((u) => (
               <tr key={u.id} className="border-t border-gray-100 odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/60 transition-colors">
                 <td className="px-3 md:px-4 py-3 font-mono text-xs">{u.username}</td>
-                <td className="px-3 md:px-4 py-3">{u.fullName}</td>
+                <td className="px-3 md:px-4 py-3">
+                  {u.role === "DISPATCHER" ? (
+                    <button type="button" className="font-medium text-blue-700 hover:underline text-left" onClick={() => setActivityUser(u)}>
+                      {u.fullName}
+                      <span className="block text-xs font-normal text-gray-500">Click to view activity</span>
+                    </button>
+                  ) : u.fullName}
+                </td>
                 <td className="px-3 md:px-4 py-3">
                   <Badge color={u.role === "ADMIN" ? "blue" : u.role === "DISPATCHER" ? "amber" : "slate"}>{u.role}</Badge>
                 </td>
@@ -237,6 +245,8 @@ export default function UsersClient({
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
+
+      {activityUser && <DispatchActivityPanel user={activityUser} />}
 
       {editingUser && (
         <EditUserModal

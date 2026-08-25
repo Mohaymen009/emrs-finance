@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isNull, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { incomeRecords } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
@@ -18,18 +18,16 @@ export async function GET() {
 
     const year = new Date().getFullYear();
 
-    // Extract the numeric prefix from refNumbers matching "<digits>-<year>".
-    // The year suffix is intentionally not constrained here — a record
-    // created last year ("1353-2025") still counts toward the global
-    // sequence, so the next number is always max-seen + 1.
+    // Extract the numeric prefix from every refNumber, including soft-deleted
+    // records. Deleted references must never be reused: the sequence is global
+    // across all creators, divisions, and historical records.
     const rows = await db
       .select({
         seq: sql<number>`nullif(regexp_replace(
           split_part(${incomeRecords.refNumber}, '-', 1),
           '[^0-9]', '', 'g'), '')::int`,
       })
-      .from(incomeRecords)
-      .where(isNull(incomeRecords.deletedAt));
+      .from(incomeRecords);
 
     let maxSeq = 0;
     for (const r of rows) {
