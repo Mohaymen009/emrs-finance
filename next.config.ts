@@ -10,7 +10,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Standalone output produces a minimal, self-contained server bundle
   // (node_modules pruned to only what's needed) — ideal for Docker deploys.
-  output: "standalone",
+  // Netlify sets NETLIFY=true during builds and uses its own Next.js
+  // adapter, which doesn't work with standalone output, so we only enable
+  // it for non-Netlify (Docker) builds.
+  output: process.env.NETLIFY ? undefined : "standalone",
 
   async headers() {
     return [
