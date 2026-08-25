@@ -45,3 +45,4 @@ next-env.d.ts
 
 # drizzle-kit generated migrations metadata (generate fresh per environment if using generate/migrate flow)
 /drizzle/
+.env
