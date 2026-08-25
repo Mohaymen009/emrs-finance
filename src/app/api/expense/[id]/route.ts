@@ -130,7 +130,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await db.update(expenseRecords).set({ deletedAt: new Date() }).where(eq(expenseRecords.id, id));
 
-    await writeAuditLog({ userId: user.id, action: "DELETE_EXPENSE", recordId: id, divisionId: row.divisionId });
+    await writeAuditLog({
+      userId: user.id,
+      action: "DELETE_EXPENSE",
+      recordId: id,
+      divisionId: row.divisionId,
+      metadata: { refNumber: row.record.refNumber, description: row.record.description, amount: row.record.amount, deletedAt: new Date().toISOString() },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

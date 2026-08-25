@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge, ConfirmDialog, Modal } from "@/components/ui";
+import DispatchActivityPanel from "./DispatchActivityPanel";
 
 type UserRow = {
   id: string;
@@ -109,9 +110,12 @@ export default function UsersClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
-          {showForm ? "Cancel" : "+ New User"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <DispatchActivityPanel />
+          <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
+            {showForm ? "Cancel" : "+ New User"}
+          </Button>
+        </div>
       </div>
 
       <p className="text-sm text-gray-500 -mt-4">

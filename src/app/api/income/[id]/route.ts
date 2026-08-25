@@ -177,6 +177,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       action: "DELETE_INCOME",
       recordId: id,
       divisionId: row.divisionId,
+      metadata: { refNumber: row.record.refNumber, title: row.record.title, amount: row.record.amount, deletedAt: new Date().toISOString() },
     });
 
     return NextResponse.json({ ok: true });
