@@ -18,16 +18,16 @@ export async function GET() {
 
     const year = new Date().getFullYear();
 
-    // Extract the numeric prefix from every refNumber, including soft-deleted
-    // records. Deleted references must never be reused: the sequence is global
-    // across all creators, divisions, and historical records.
+    // Only valid references for the current year participate in the sequence.
+    // Legacy formats (for example 202610102), malformed values, and references
+    // from another year must not inflate the next suggestion. Deleted rows are
+    // still included so a number is never reused.
     const rows = await db
       .select({
-        seq: sql<number>`nullif(regexp_replace(
-          split_part(${incomeRecords.refNumber}, '-', 1),
-          '[^0-9]', '', 'g'), '')::int`,
+        seq: sql<number>`substring(${incomeRecords.refNumber} from '^[0-9]+')::int`,
       })
-      .from(incomeRecords);
+      .from(incomeRecords)
+      .where(sql`${incomeRecords.refNumber} ~ ${`^[0-9]+-${year}$`}`);
 
     let maxSeq = 0;
     for (const r of rows) {
