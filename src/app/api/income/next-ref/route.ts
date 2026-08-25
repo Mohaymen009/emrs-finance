@@ -29,9 +29,10 @@ export async function GET() {
       .from(incomeRecords)
       .where(sql`${incomeRecords.refNumber} ~ ${`^[0-9]+-${year}$`}`);
 
-    let maxSeq = 0;
+    const RESET_BASELINE = 1354;
+    let maxSeq = RESET_BASELINE - 1;
     for (const r of rows) {
-      if (r.seq != null && !Number.isNaN(r.seq) && r.seq > maxSeq) {
+      if (r.seq != null && Number.isInteger(r.seq) && r.seq >= RESET_BASELINE && r.seq > maxSeq) {
         maxSeq = r.seq;
       }
     }
