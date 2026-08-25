@@ -25,19 +25,28 @@ export async function GET() {
     const rows = await db
       .select({
         seq: sql<number>`substring(${incomeRecords.refNumber} from '^[0-9]+')::int`,
+        deletedAt: incomeRecords.deletedAt,
       })
       .from(incomeRecords)
       .where(sql`${incomeRecords.refNumber} ~ ${`^[0-9]+-${year}$`}`);
 
     const RESET_BASELINE = 1354;
     let maxSeq = RESET_BASELINE - 1;
+    let maxHasActiveRecord = false;
     for (const r of rows) {
-      if (r.seq != null && Number.isInteger(r.seq) && r.seq > RESET_BASELINE && r.seq > maxSeq) {
-        maxSeq = r.seq;
+      if (r.seq != null && Number.isInteger(r.seq) && r.seq > RESET_BASELINE) {
+        if (r.seq > maxSeq) {
+          maxSeq = r.seq;
+          maxHasActiveRecord = !r.deletedAt;
+        } else if (r.seq === maxSeq && !r.deletedAt) {
+          maxHasActiveRecord = true;
+        }
       }
     }
 
-    const nextSeq = maxSeq + 1;
+    // Reuse only the latest number when every record using it was deleted.
+    // Lower gaps remain untouched so existing references and paperwork never change.
+    const nextSeq = maxSeq > RESET_BASELINE && !maxHasActiveRecord ? maxSeq : maxSeq + 1;
     return NextResponse.json({ refNumber: `${nextSeq}-${year}` });
   } catch (err) {
     return handleApiError(err);
