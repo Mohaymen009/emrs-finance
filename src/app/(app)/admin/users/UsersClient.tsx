@@ -246,7 +246,7 @@ export default function UsersClient({
         onCancel={() => setPendingDelete(null)}
       />
 
-      {activityUser && <DispatchActivityPanel user={activityUser} />}
+      {activityUser && <DispatchActivityPanel user={activityUser} onClose={() => setActivityUser(null)} />}
 
       {editingUser && (
         <EditUserModal

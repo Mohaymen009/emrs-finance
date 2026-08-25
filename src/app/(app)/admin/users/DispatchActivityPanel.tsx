@@ -9,7 +9,7 @@ type Activity = { log: { id: string; action: string; recordId: string | null; ti
 
 const labels: Record<string, string> = { CREATE_INCOME: "Created income", UPDATE_INCOME: "Updated income", DELETE_INCOME: "Deleted income", CREATE_EXPENSE: "Created expense", UPDATE_EXPENSE: "Updated expense", DELETE_EXPENSE: "Deleted expense", PAYMENT_RECORDED: "Recorded payment", FILE_UPLOAD: "Uploaded file", FILE_DOWNLOAD: "Downloaded file", EXPORT_REPORT: "Exported report" };
 
-export default function DispatchActivityPanel({ user }: { user?: ActivityUser }) {
+export default function DispatchActivityPanel({ user, onClose }: { user?: ActivityUser; onClose?: () => void }) {
   const router = useRouter();
   const [open, setOpen] = useState(Boolean(user));
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -39,7 +39,7 @@ export default function DispatchActivityPanel({ user }: { user?: ActivityUser })
 
   return <>
     <Button variant={user ? "ghost" : "secondary"} onClick={show}>{user ? "View activity" : "View dispatch activity"}</Button>
-    <Modal open={open} onClose={() => setOpen(false)} title={user ? `${user.fullName}'s activity` : "Dispatch user activity"} maxWidth="max-w-5xl">
+    <Modal open={open} onClose={() => { setOpen(false); onClose?.(); }} title={user ? `${user.fullName}'s activity` : "Dispatch user activity"} maxWidth="max-w-5xl">
       <div className="flex flex-wrap items-center gap-2 mb-4"><select aria-label="Filter by action" value={action} onChange={(e) => setAction(e.target.value)} className="border rounded-lg px-3 py-2 text-sm"><option value="">All actions</option>{Object.entries(labels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select><Button onClick={() => void load()} disabled={loading}>{loading ? "Loading..." : "Apply filter"}</Button></div>
       <p className="text-sm text-gray-500 mb-4">{user ? "Everything this dispatch user created, edited, paid, uploaded, or deleted." : "Every admin can review dispatch activity."}</p>
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 mb-3">{error}</p>}
