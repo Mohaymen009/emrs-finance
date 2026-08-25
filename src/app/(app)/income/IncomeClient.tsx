@@ -245,7 +245,35 @@ export default function IncomeClient({
 
   const [divisionCode, setDivisionCode] = useState(divisions[0]?.code ?? "AMBULANCE");
   const [refNumber, setRefNumber] = useState("");
+  const [refTouched, setRefTouched] = useState(false);
   const [title, setTitle] = useState("");
+
+  // Auto-suggest the next reference number whenever the create form opens.
+  // The suggestion is fetched once and only fills in if the user hasn't
+  // typed anything themselves.
+  useEffect(() => {
+    if (!showForm) {
+      setRefTouched(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/income/next-ref");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && !refTouched && data.refNumber) {
+          setRefNumber(data.refNumber);
+        }
+      } catch {
+        // best-effort — the field stays editable if the lookup fails
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState("");
@@ -408,6 +436,7 @@ export default function IncomeClient({
       }
       setShowForm(false);
       setRefNumber("");
+      setRefTouched(false);
       setTitle("");
       setAmount("");
       setDiscountType("");
@@ -465,8 +494,16 @@ export default function IncomeClient({
               <label className="block text-xs font-medium mb-1">
                 Reference Number <span className="text-red-500">*</span>
               </label>
-              <p className="text-xs text-gray-400 mb-1">Your own invoice/reference number — any format.</p>
-              <input value={refNumber} onChange={(e) => setRefNumber(e.target.value)} required className={inputClass} />
+              <p className="text-xs text-gray-400 mb-1">Auto-suggested — edit if you need a different format.</p>
+              <input
+                value={refNumber}
+                onChange={(e) => {
+                  setRefNumber(e.target.value);
+                  setRefTouched(true);
+                }}
+                required
+                className={inputClass}
+              />
             </div>
           </div>
 
